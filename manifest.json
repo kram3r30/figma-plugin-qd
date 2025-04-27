@@ -1,0 +1,16 @@
+{
+    "name": "Quick Documentation",
+    "id": "quick-documentation",
+    "api": "1.0.0",
+    "main": "dist/code.js",
+    "ui": "src/ui.html",
+    "editorType": ["figma"],
+    "networkAccess": {
+      "allowedDomains": [
+        "https://api.anthropic.com"
+      ],
+      "devAllowedDomains": [
+        "http://localhost:11434"
+      ]
+    }
+  }

@@ -1,0 +1,25 @@
+{
+  "name": "component-documentation-viewer",
+  "version": "1.0.0",
+  "description": "Figma plugin for viewing component documentation",
+  "main": "code.js",
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development --watch"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "@anthropic-ai/sdk": "^0.18.0"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.109.0",
+    "copy-webpack-plugin": "^13.0.0",
+    "dotenv-webpack": "^8.1.0",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.8.2",
+    "webpack": "^5.98.0",
+    "webpack-cli": "^5.1.4"
+  }
+}

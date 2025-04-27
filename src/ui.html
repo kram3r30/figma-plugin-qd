@@ -1,0 +1,2459 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Prevent body scrolling */
+        min-height: 584px; /* Added min height */
+        min-width: 430px; /* Added min width */
+        background: var(--figma-color-bg, #2c2c2c);
+      }
+
+      body {
+        font-family: var(--figma-font-family, Inter, sans-serif);
+        color: var(--figma-color-text, white);
+        display: flex; /* Use flexbox for layout */
+        flex-direction: column; /* Stack children vertically */
+      }
+
+      body.resizing {
+        user-select: none;
+        cursor: nwse-resize;
+      }
+
+      body.resizing * {
+        pointer-events: none;
+      }
+
+      /* Resize grabber - fresh implementation */
+      #resize-grabber {
+        position: absolute;
+        bottom: 8px;
+        right: 8px;
+        width: 16px;
+        height: 16px;
+        cursor: nwse-resize;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+
+      .plugin-wrapper {
+        flex-grow: 1;
+        height: 100%;
+        overflow: hidden; /* Change from auto to hidden */
+        position: relative;
+      }
+
+      .container {
+        /* padding: 24px; */ /* Original - now top/horizontal only */
+        padding: 24px 24px 196px 24px; /* Added bottom padding for fixed AI section */
+        max-width: 100%;
+        box-sizing: border-box;
+        height: 100%;
+        overflow-y: auto;
+      }
+
+      /* Custom Scrollbar for .container and .content-scroll */
+      .container::-webkit-scrollbar, 
+      .content-scroll::-webkit-scrollbar {
+        width: 8px; 
+      }
+
+      .container::-webkit-scrollbar-track, 
+      .content-scroll::-webkit-scrollbar-track {
+        background: transparent; 
+        border-radius: 4px;
+      }
+
+      .container::-webkit-scrollbar-thumb, 
+      .content-scroll::-webkit-scrollbar-thumb {
+        background-color: var(--figma-color-border-strong, #555); 
+        border-radius: 4px;
+        border: 2px solid transparent; 
+        background-clip: content-box;
+      }
+
+      .container::-webkit-scrollbar-thumb:hover, 
+      .content-scroll::-webkit-scrollbar-thumb:hover {
+        background-color: var(--figma-color-border-stronger, #777);
+      }
+
+      .container, 
+      .content-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: var(--figma-color-border-strong, #555) transparent; 
+      }
+      /* End Custom Scrollbar */
+
+      /* Header styles */
+      .plugin-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        overflow-y: auto;
+        height: 100%; /* Ensure it takes available height */
+        flex-grow: 1; /* Allow it to grow */
+      }
+
+      .plugin-title {
+        width: 382px;
+        height: 20px;
+        font-family: var(--figma-font-family, 'Inter');
+        font-style: normal;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 140%;
+        color: var(--figma-color-text, #F3F3F3);
+        flex: none;
+        order: 0;
+        align-self: stretch;
+        flex-grow: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .close-button {
+        position: relative; /* Needed for potential focus outline */
+        background: none;
+        border: none;
+        color: var(--figma-color-text, white);
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px; /* Add radius for better focus outline */
+        transition: background-color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+        outline: none;
+      }
+
+      .close-button:hover {
+        background-color: var(--figma-color-bg-hover, rgba(255, 255, 255, 0.1));
+      }
+
+      .close-button:focus-visible {
+        box-shadow: 0 0 0 2px var(--figma-color-border-brand, #18A0FB);
+      }
+
+      /* Component selector */
+      .component-selector {
+        margin-bottom: 24px; /* Add margin here */
+        /* Remove styles previously on .selector-dropdown */
+      }
+
+      .selector-label {
+        /* Keep existing font/color styles */
+        width: auto; /* Allow natural width */
+        height: auto; /* Allow natural height */
+        font-family: var(--figma-font-family, 'Inter');
+        font-style: normal;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 140%; /* Revert line-height */
+        color: var(--figma-color-text, #F3F3F3);
+        /* Remove flex properties */
+        /* flex: none; order: 0; align-self: stretch; flex-grow: 0; */
+        display: block; /* Ensure it takes block space */
+        margin-bottom: 8px; /* Target spacing */
+      }
+
+      #component-select {
+        /* Keep existing styles */
+        width: 100%;
+        padding: 12px 40px 12px 16px; /* Standard padding */
+        background: var(--figma-color-bg-secondary, #1e1e1e) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6L8 10L12 6" stroke="%23F3F3F3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>') no-repeat right 16px center;
+        background-size: 16px 16px;
+        border: 1px solid var(--figma-color-border, #363639);
+        border-radius: 8px;
+        color: var(--figma-color-text, #F3F3F3);
+        font-family: var(--figma-font-family, 'Inter'), sans-serif;
+        font-style: normal;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 140%;
+        cursor: pointer;
+        box-sizing: border-box;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+        outline: none; /* Remove default focus */
+      }
+
+      #component-select:hover {
+        background-color: var(--figma-color-bg-hover, #2a2a2a);
+        border-color: var(--figma-color-border-strong, #555);
+      }
+
+      #component-select:focus-visible {
+        border-color: var(--figma-color-border-brand, #18A0FB);
+        box-shadow: 0 0 0 1px var(--figma-color-border-brand, #18A0FB);
+      }
+
+      /* Question section */
+      .question-section {
+        margin-bottom: 24px;
+      }
+
+      .question-title {
+        width: 382px;
+        height: 20px;
+        font-family: var(--figma-font-family, 'Inter');
+        font-style: normal;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 140%;
+        color: var(--figma-color-text, #F3F3F3);
+        flex: none;
+        order: 0;
+        align-self: stretch;
+        flex-grow: 0;
+        margin-bottom: 12px;
+      }
+
+      /* Options grid */
+      .options-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+
+      /* Make storybook option span full width */
+      .option[data-type="storybook"] {
+        grid-column: 1 / -1;
+      }
+
+      .option {
+        box-sizing: border-box;
+        display: flex; /* Ensure flex display */
+        flex-direction: row;
+        align-items: center; /* Ensure vertical alignment */
+        padding: 8px 16px;
+        gap: 8px;
+        width: 100%;
+        min-height: 48px;
+        background: var(--figma-color-bg-secondary, #1F1F20);
+        border: 1px solid var(--figma-color-border, #363639);
+        border-radius: 8px;
+        cursor: pointer;
+        color: var(--figma-color-text, #F3F3F3);
+        font-family: var(--figma-font-family, 'Inter');
+        font-style: normal;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 140%;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+        outline: none; /* Remove default focus */
+        /* REMOVE: justify-content: center; - let content and icon space out */
+      }
+
+      .option:hover {
+        background: #0E0E0E; /* Preserving custom hover color */
+        border: 1px solid var(--figma-color-border, #363639);
+        box-shadow: 0px 16px 32px -8px rgba(12, 12, 13, 0.4);
+      }
+
+      .option:focus-visible {
+        border-color: var(--figma-color-border-brand, #18A0FB);
+        box-shadow: 0 0 0 1px var(--figma-color-border-brand, #18A0FB), 0px 16px 32px -8px rgba(12, 12, 13, 0.4);
+      }
+
+      .option-content {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1; /* Allow content to take up available space */
+      }
+
+      .option-icon {
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .chevron-right {
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .chevron-right svg {
+        stroke: var(--figma-color-text, #f3f3f3);
+      }
+
+      /* NEW: Style for the external link icon */
+      .external-link-icon {
+        /* Push icon to the right */
+        margin-left: auto;
+        display: flex; /* Ensure icon aligns properly */
+        align-items: center;
+        justify-content: center;
+      }
+      .external-link-icon svg {
+        /* Ensure fill uses the text color, remove stroke */
+        fill: currentColor;
+        /* stroke: var(--figma-color-text, #f3f3f3); */ /* REMOVE THIS LINE */
+        width: 16px;
+        height: 16px;
+      }
+
+      /* AI section */
+      .ai-section {
+        /* Positioning */
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%; /* Ensure full width */
+        height: 196px; /* Explicit height */
+        box-sizing: border-box; /* Include padding in width/height calculation */
+
+        /* Keep existing styles */
+        /* margin-bottom: 24px; */ /* Remove margin */
+        background: var(--figma-color-bg-secondary, #1F1F20); /* Updated background */
+        border-top-left-radius: 16px; /* New radius */
+        border-top-right-radius: 16px; /* New radius */
+        padding: 16px; /* Add padding */
+        z-index: 10; /* Ensure it's above other content if needed */
+        box-shadow: 0px 16px 130px rgba(20, 174, 92, 0.8); /* Added green glow */
+      }
+
+      /* Error state for AI input */
+      .ai-input.error textarea {
+        border-color: #e34c4c !important; /* Error red color */
+      }
+
+      .ai-input.error textarea::placeholder {
+        color: #e34c4c !important;
+      }
+
+      .ai-input-error-message {
+        display: none; /* Hide the separate error message */
+      }
+
+      .ai-section-title {
+        width: 100%; /* Adjust width */
+        height: auto; /* Adjust height */
+        font-family: var(--figma-font-family, 'Inter');
+        font-style: normal;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 140%;
+        color: var(--figma-color-text, #F3F3F3);
+        flex: none;
+        order: 0;
+        align-self: stretch;
+        flex-grow: 0;
+        margin-bottom: 12px; /* Reverted back to 12px */
+      }
+
+      /* NEW: Container for text area and button */
+      .ai-input-area {
+        position: relative; /* Needed for absolute positioning of the button */
+        /* Remove visual styles - moved back to textarea */
+      }
+
+      .ai-input textarea {
+        width: 100%;
+        min-height: 120px; /* Updated min-height */
+        /* Re-apply styles */
+        /* INCREASED right padding for Ask AI + History buttons */
+        padding: 12px 150px 12px 16px; 
+        background: var(--figma-color-bg-tertiary, #1a1a1a);
+        border: 1px solid var(--figma-color-border, #363639);
+        border-radius: 16px; /* User specified radius */
+        color: var(--figma-color-text, #F3F3F3);
+        font-family: var(--figma-font-family, 'Inter');
+        font-style: normal;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 140%;
+        resize: none;
+        box-sizing: border-box;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease; /* Add transition back */
+        outline: none; /* Remove default focus */
+      }
+
+      /* Add hover/focus styles back to textarea */
+      .ai-input textarea:hover {
+        border-color: var(--figma-color-border-strong, #555);
+      }
+
+      .ai-input textarea:focus-visible {
+        border-color: var(--figma-color-border-brand, #18A0FB);
+        box-shadow: 0 0 0 1px var(--figma-color-border-brand, #18A0FB);
+      }
+
+      /* Custom Scrollbar Styles for AI Textarea */
+      /* WebKit Browsers (Chrome, Safari, Edge) */
+      .ai-input textarea::-webkit-scrollbar {
+        width: 8px; /* Thinner scrollbar */
+      }
+
+      .ai-input textarea::-webkit-scrollbar-track {
+        background: transparent; /* Invisible track */
+        border-radius: 4px;
+      }
+
+      .ai-input textarea::-webkit-scrollbar-thumb {
+        background-color: var(--figma-color-border-strong, #555); /* Subtle grey thumb */
+        border-radius: 4px;
+        border: 2px solid transparent; /* Padding around thumb */
+        background-clip: content-box;
+      }
+
+      .ai-input textarea::-webkit-scrollbar-thumb:hover {
+        background-color: var(--figma-color-border-stronger, #777);
+      }
+
+      /* Firefox */
+      .ai-input textarea {
+        /* ... keep existing textarea styles ... */
+        scrollbar-width: thin;
+        scrollbar-color: var(--figma-color-border-strong, #555) transparent; /* thumb track */
+      }
+
+      #ask-ai {
+        /* Position inside the ai-input-area's padding */
+        position: absolute;
+        bottom: 8px; /* Adjust as needed */
+        right: 8px; /* Adjust as needed */
+
+        /* Remove full width and set fixed size */
+        width: auto; /* Let padding define width */
+        height: 32px; /* Smaller height */
+        padding: 8px 12px; /* Adjust padding */
+
+        /* Keep existing styles */
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        background: var(--figma-color-bg-brand, #14AE5C); /* Use icon green */
+        box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+        border-radius: 6px; /* Slightly less rounded */
+        border: none;
+        color: var(--figma-color-text-onbrand, #2c2c2c); /* Use Figma variable with dark fallback */
+        font-family: var(--figma-font-family, 'Inter');
+        font-style: normal;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 1; /* Adjust line height */
+        cursor: pointer;
+        transition: background-color 0.2s ease, box-shadow 0.2s ease;
+        outline: none; /* Remove default focus */
+
+        /* Remove properties related to full-width layout */
+        /* flex: none; */
+        /* order: 1; */
+        /* align-self: stretch; */
+        /* flex-grow: 0; */
+      }
+
+      #ask-ai:hover {
+        background: #108a49; /* Preserving custom hover color */
+        box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.3); /* Slightly stronger hover shadow */
+      }
+
+      #ask-ai:focus-visible {
+        box-shadow: 0 0 0 2px var(--figma-color-border-brand, #18A0FB); /* Keep focus outline */
+      }
+
+      #ask-ai svg path {
+        fill: var(--figma-color-text-onbrand, #2c2c2c); /* Use Figma variable with dark fallback */
+      }
+
+      /* Page transitions */
+      .page {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--figma-color-bg, #2c2c2c);
+        transition: transform 0.3s ease, opacity 0.3s ease; /* Added opacity transition */
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        transform: translateX(0); /* Default position */
+      }
+
+      /* When pages are hidden */
+      .page.hidden {
+        transform: translateX(100%); /* Slide out right */
+        pointer-events: none;
+        opacity: 0; /* Fade out */
+        /* Use inert attribute in JS instead of display: none */
+      }
+
+      /* Main page slides left when hidden */
+      #main-page.hidden {
+        transform: translateX(-100%);
+      }
+
+      /* Content page slides in from right */
+      #content-page {
+        background: var(--figma-color-bg, #2c2c2c);
+        z-index: 1;
+        transform: translateX(100%); /* Start off-screen to the right */
+        opacity: 0; /* Start hidden */
+      }
+
+      /* Content page in view */
+      #content-page:not(.hidden) {
+        transform: translateX(0);
+        opacity: 1; /* Fade in */
+      }
+
+      /* Content page slides right when hidden */
+      #content-page.hidden {
+        transform: translateX(100%);
+        opacity: 0; /* Fade out */
+      }
+
+      /* Content header */
+      .content-header {
+        padding: 24px 24px 0 24px; /* Reduced bottom padding to account for tabs */
+        display: flex;
+        flex-direction: column;
+        gap: 24px; /* Changed from 16px to 24px */
+        flex-shrink: 0; /* Prevent header from shrinking */
+      }
+      
+      /* Tab navigation */
+      .tab-navigation {
+        display: flex;
+        flex-direction: row;
+        gap: 0px; /* Changed from 8px to 0px */
+        border-bottom: 1px solid var(--figma-color-border, #363639);
+        margin: 0 -24px; /* Extend to full width */
+        padding: 0 24px;
+      }
+      
+      /* Tab styles */
+      .tab {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        padding: 4px 12px;
+        height: 25px;
+        background: transparent;
+        border: none;
+        border-radius: 4px 4px 0px 0px;
+        color: var(--figma-color-text, #F3F3F3);
+        font-family: var(--figma-font-family, 'Inter');
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap; /* Added to prevent text wrapping */
+        border-bottom: 2px solid transparent; /* Base transparent border */
+      }
+      
+      .tab.active {
+        border-bottom-color: #14AE5C; /* Use color variable */
+        font-weight: 500;
+      }
+      
+      .tab:not(.active) {
+        border-bottom-color: transparent;
+      }
+      
+      .tab:not(.active):hover {
+        background: var(--figma-color-bg-hover, #383838);
+        border-bottom-color: var(--figma-color-border-strong, #767676);
+      }
+
+      .tab:focus-visible {
+        outline: 2px solid var(--figma-color-border-brand, #18A0FB);
+        outline-offset: 1px;
+      }
+
+      .content-scroll {
+        padding: 0 24px 24px 24px;
+        overflow-y: auto;
+        height: 100%; /* Ensure it takes available height */
+        flex-grow: 1; /* Allow it to grow */
+      }
+
+      /* Back button */
+      .back-button {
+        background: none;
+        border: none;
+        color: var(--figma-color-text, white);
+        font-size: 14px;
+        cursor: pointer;
+        display: inline-flex; /* Use inline-flex for icon + text */
+        align-items: center;
+        gap: 6px; /* Adjust gap */
+        padding: 4px 0; /* Adjust padding */
+        transition: opacity 0.2s ease;
+        outline: none;
+      }
+      .back-button svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+      }
+      .back-button:hover { opacity: 0.8; }
+      .back-button:focus-visible { /* Keep existing focus style */ }
+
+      /* Content title */
+      #content-title {
+        width: 382px;
+        height: 22px; /* Updated to match spec */
+        font-family: var(--figma-font-family, 'Inter');
+        font-style: normal;
+        font-weight: 600; /* Updated to Body Strong style */
+        font-size: 16px; /* Updated to Body Strong style */
+        line-height: 140%;
+        color: var(--figma-color-text, #F3F3F3);
+        flex: none;
+        order: 0;
+        align-self: stretch;
+        flex-grow: 0;
+        margin-top: 24px; /* Added margin top */
+        margin-bottom: 4px; /* Added margin bottom */
+        /* Remove z-index and margin-top, handled by parent spacing */
+        /* z-index: 0; */
+        /* margin-top: 24px; */
+      }
+
+      /* Content body (for static docs) */
+      #content-body {
+        color: var(--figma-color-text, #F3F3F3);
+        line-height: 1.5;
+        font-family: var(--figma-font-family, 'Inter');
+        font-size: 14px;
+        padding-top: 16px; /* Add padding */
+      }
+      #content-body.hidden {
+        display: none;
+      }
+      #content-body p { margin: 0 0 1em 0; }
+      #content-body h4 { font-weight: 600; margin: 4px 0 16px 0; font-size: 1.1em; } /* Adjusted margin */
+      #content-body ul, #content-body ol { margin: 4px 0 16px 20px; padding: 0; } /* Adjusted margin */
+      #content-body li { margin-bottom: 0.5em; }
+      #content-body code {
+        font-family: monospace;
+        background-color: var(--figma-color-bg-secondary, #383838);
+        padding: 2px 4px;
+        border-radius: 4px;
+        overflow-wrap: break-word; /* Allow wrapping inside code tags */
+      }
+      #content-body strong { /* Add this rule */
+        overflow-wrap: break-word; /* Allow wrapping inside strong tags */
+      }
+      #content-body pre {
+        background-color: var(--figma-color-bg-secondary, #383838);
+        padding: 12px;
+        border-radius: 6px;
+        /* overflow-x: auto; */ /* Remove this to prevent horizontal scroll */
+        white-space: pre-wrap;    /* Allow text to wrap */
+        word-break: break-word; /* Break long words */
+        margin: 0 0 16px;
+      }
+      #content-body pre code {
+        background-color: transparent;
+        padding: 0;
+      }
+
+      /* Icons */
+      .icon {
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* Loading state - unified */
+      .loading-state {
+        display: none; /* Hidden by default */
+        flex-direction: column; /* Stack elements vertically */
+        align-items: flex-start; /* Align content to the start (left) */
+        justify-content: flex-start; /* Align content to the top */
+        gap: 12px; /* Adjusted gap */
+        /* Remove padding: 24px; */
+        padding: 24px 0; /* Only top/bottom padding to push it down */
+        /* Remove text-align: center; */
+        width: 100%;
+        box-sizing: border-box; /* Ensure padding is included in width */
+        /* height: 100%; */ /* Rely on flex-grow instead */
+        flex-grow: 1; /* Take available space */
+        /* Remove margin: auto; */
+      }
+
+      .spinner {
+        width: 20px; /* Spinner size */
+        height: 20px;
+        flex-shrink: 0;
+        border: 2px solid var(--figma-color-border, #363639); /* Use border color */
+        border-top-color: var(--figma-color-icon-brand, #14AE5C); /* Use brand icon color */
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      .shimmer-text {
+        background: linear-gradient(
+          90deg,
+          var(--figma-color-text, #F3F3F3) 0%,
+          var(--figma-color-text-secondary, #848484) 50%,
+          var(--figma-color-text, #F3F3F3) 100%
+        );
+        background-size: 200% auto;
+        color: transparent;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 2s linear infinite;
+        font-size: 14px;
+        font-weight: 400;
+        font-family: var(--figma-font-family, 'Inter');
+      }
+
+      @keyframes shimmer {
+        to { background-position: 200% center; }
+      }
+
+      /* Enhanced keyboard focus styles */
+      :focus {
+        outline: none; /* Or ensure no visible outline is added here */
+      }
+      
+      :focus-visible {
+        outline: 2px solid var(--figma-color-border-brand, #18A0FB);
+        outline-offset: 2px;
+      }
+      
+      /* High contrast focus for keyboard navigation */
+      @media (forced-colors: active) {
+        :focus-visible { /* Target focus-visible here too */
+          outline: 3px solid CanvasText;
+        }
+      }
+      
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border-width: 0;
+      }
+      
+      /* Make .option elements behave like buttons for keyboard navigation */
+      .option {
+        /* Keep all existing styles */
+        position: relative;
+        user-select: none;
+      }
+      
+      /* Existing focus styling should remain as is */
+
+      /* --- AI Response Area Styling --- */
+      #ai-response-container {
+        /* Removed position relative */
+        margin-top: 24px; 
+        /* display: block; controlled by JS */
+      }
+      #ai-response-container.hidden {
+          display: none;
+      }
+
+      /* NEW: Styles for the AI response content div */
+      #ai-response-content {
+          width: 100%;
+          min-height: 100px; /* Adjust as needed, less needed than textarea */
+          padding: 12px 16px; /* Match old padding */
+          background: var(--figma-color-bg-tertiary, #1a1a1a);
+          border: 1px solid var(--figma-color-border, #363639);
+          border-radius: 8px;
+          color: var(--figma-color-text, #F3F3F3);
+          font-family: var(--figma-font-family, 'Inter');
+          font-size: 14px;
+          line-height: 1.5;
+          box-sizing: border-box;
+          /* Add styles for content within this div, mirroring #content-body */
+      }
+
+      #ai-response-content.error { /* Style for error state on the container */
+           border-color: var(--figma-color-border-danger, #e74c3c) !important;
+           /* Optionally add an error icon or background */
+      }
+
+      #ai-response-content p {
+          margin: 0 0 1em 0; 
+      }
+      #ai-response-content h4 { 
+          font-weight: 600; 
+          margin: 1.5em 0 0.5em 0; 
+          font-size: 1.1em; 
+      }
+      #ai-response-content ul {
+          margin: 0.5em 0 1em 20px; 
+          padding: 0; 
+          list-style: none; /* Remove default bullets since we add our own */
+      }
+      #ai-response-content li {
+          margin-bottom: 0.5em; 
+      }
+
+      /* Copy Button Styling - Moved below textarea */
+      #copy-response-button { /* Target the ID */
+          /* Remove absolute positioning */
+          /* position: absolute; */
+          /* top: 8px; */
+          /* right: 8px; */
+
+          /* Layout below textarea */
+          display: inline-flex; /* Use inline-flex to contain icon + text */
+          align-items: center;
+          justify-content: center;
+          gap: 8px; /* Space between icon and text */
+          margin-top: 12px; /* Space above the button */
+          margin-bottom: 8px; /* Space below button */
+
+          /* Sizing & Padding */
+          height: 32px; /* Match Ask AI button height */
+          padding: 0 12px; /* Horizontal padding */
+          width: auto; /* Fit content */
+
+          /* Appearance - secondary button style */
+          background: var(--figma-color-bg-secondary, #1F1F20);
+          border: 1px solid var(--figma-color-border, #363639);
+          border-radius: 6px; /* Match Ask AI */
+          color: var(--figma-color-text, #F3F3F3); /* Default text color */
+        font-family: var(--figma-font-family, 'Inter');
+          font-size: 14px; /* Match Ask AI */
+          font-weight: 400; /* Regular weight */
+          line-height: 1;
+          text-align: center;
+          cursor: pointer;
+          transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+          outline: none;
+      }
+
+      #copy-response-button:hover {
+          background: var(--figma-color-bg-hover, #2a2a2a);
+          border-color: var(--figma-color-border-strong, #555);
+          color: var(--figma-color-text-hover, #ffffff);
+      }
+      
+      #copy-response-button:focus-visible {
+          border-color: var(--figma-color-border-brand, #18A0FB);
+          box-shadow: 0 0 0 1px var(--figma-color-border-brand, #18A0FB);
+          color: var(--figma-color-text-brand, #18A0FB);
+      }
+      
+      #copy-response-button:disabled {
+          opacity: 0.6;
+          cursor: default;
+          background: var(--figma-color-bg-disabled, #444);
+          border-color: var(--figma-color-border-disabled, #555);
+          color: var(--figma-color-text-disabled, #888);
+      }
+      
+      #copy-response-button svg {
+           width: 16px;
+           height: 16px;
+           fill: currentColor; /* Icon color matches text */
+           vertical-align: middle; /* Align icons nicely with text */
+      }
+      
+      /* NEW: Styles for button states */
+      #copy-response-button .btn-content {
+          display: inline-flex; /* Use flex for alignment inside */
+          align-items: center;
+          gap: 8px;
+          transition: opacity 0.2s ease-in-out;
+      }
+
+      #copy-response-button .success-state {
+          display: none; /* Hidden by default */
+          color: var(--figma-color-text-onbrand-secondary, #FFFFFF); /* White */
+          opacity: 0;
+          transform: scale(0.8);
+          /* Added styles */
+          font-weight: 600;
+          line-height: 140%; 
+      }
+
+      #copy-response-button.copied .default-state {
+          display: none; /* Hide default content */
+          opacity: 0;
+      }
+
+      #copy-response-button.copied .success-state {
+          display: inline-flex; /* Show success state */
+          animation: copiedAnimation 0.3s ease-out forwards;
+      }
+
+      #copy-response-button.copied {
+          position: relative; /* Added */
+          background: var(--figma-color-bg-secondary, #1F1F20); /* Updated background */
+          border: 2px solid var(--figma-color-border-success, #14AE5C); /* Updated border */
+          box-shadow: 0px 0px 0px 3px var(--figma-color-bg-secondary, #1F1F20), 0px 0px 0px 4px var(--figma-color-border-success, #14AE5C); /* Added shadow */
+          border-radius: 8px; /* Updated radius */
+          filter: none; /* Remove previous filter if any */
+          /* Ensure flex properties remain to center content */
+          display: inline-flex; 
+          justify-content: center;
+          align-items: center;
+          padding: 8px 16px; /* Keep padding consistent? */
+          gap: 8px; /* Keep gap consistent? */
+      }
+
+      /* Copied Animation */
+      @keyframes copiedAnimation {
+          0% {
+              opacity: 0;
+              transform: scale(0.8);
+          }
+          100% {
+              opacity: 1;
+              transform: scale(1);
+          }
+      }
+      
+      /* Remove the old success/error wrapper styles */
+      /* .ai-success, .ai-error { display: none; } */
+      /* Redundant styles for .response-textarea removed as we target ID */
+
+      /* --- Skeleton Loader Styles --- */
+      .skeleton-loader {
+        display: none;
+          width: 100%;
+        /* Remove max-width: 430px; */
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        /* Remove padding: 0 16px; */
+        padding: 0; /* No padding on the skeleton itself */
+          box-sizing: border-box;
+      }
+
+      @keyframes skeleton-shimmer {
+        0% { background-position: -200px 0; }
+        100% { background-position: calc(200px + 100%) 0; }
+      }
+
+      .skeleton-textarea,
+      .skeleton-button {
+        background-color: var(--figma-color-bg-secondary, #1F1F20); /* Base color */
+        background-image: linear-gradient(
+          90deg,
+          var(--figma-color-bg-secondary, #1F1F20) 25%,
+          var(--figma-color-bg-tertiary, #3a3a3a) 50%,
+          var(--figma-color-bg-secondary, #1F1F20) 75%
+        );
+        background-size: 200px 100%;
+        background-repeat: no-repeat;
+        border-radius: 8px;
+        animation: skeleton-shimmer 1.5s infinite linear;
+      }
+
+      .skeleton-textarea {
+        width: 100%;
+        height: 120px; /* Approximate height of the response textarea */
+      }
+
+      .skeleton-button {
+        width: 120px; /* Approximate width of the copy button */
+        height: 32px; /* Match copy button height */
+        align-self: flex-start; /* Align to where the button would be */
+        margin-left: 0; /* Adjust as needed if layout changes */
+      }
+      /* --- End Skeleton Loader Styles --- */
+
+      /* Hide original spinner/text when skeleton is shown via JS adding a class */
+      .loading-state.skeleton-active .spinner,
+      .loading-state.skeleton-active .shimmer-text {
+        display: none;
+      }
+      
+      /* Show skeleton loader when parent has the class */
+      .loading-state.skeleton-active .skeleton-loader {
+         display: flex; /* Or 'block' or 'grid' depending on final layout */
+      }
+
+      /* Basic Table Styles */
+      #content-body table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1em;
+        margin-bottom: 1em;
+        table-layout: fixed; /* Revert to fixed (100% is invalid here) */
+      }
+      #content-body th,
+      #content-body td {
+        border: 1px solid var(--figma-color-border, #363639);
+        padding: 8px 12px;
+        text-align: left;
+        vertical-align: top; /* Align content to top */
+        font-family: inherit; /* Inherit font family */
+        font-size: .75rem; /* Inherit font size */
+        overflow-wrap: break-word; /* Allow long words to wrap */
+      }
+      #content-body th {
+        background-color: var(--figma-color-bg-secondary, #383838);
+        font-weight: 600;
+      }
+      /* End Basic Table Styles */
+
+      /* NEW: Style for the prompt history button */
+      #prompt-history-btn {
+        position: absolute;
+        bottom: 8px;
+        /* Position it 8px to the left of the Ask AI button */
+        right: 109px; /* ask-ai estimated width (93px) + gap (8px) + ask-ai right (8px) */
+        width: 32px; /* Square button */
+        height: 32px; /* Match Ask AI button height */
+        padding: 0; /* Remove padding for icon-only */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: var(--figma-color-bg-secondary, #1F1F20); /* Match secondary button style */
+        border: 1px solid var(--figma-color-border, #363639); /* Match secondary button style */
+        border-radius: 6px; /* Match Ask AI */
+        color: var(--figma-color-icon, #F3F3F3); /* Icon color */
+        cursor: pointer;
+        transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        outline: none;
+      }
+
+      #prompt-history-btn:hover {
+        background: var(--figma-color-bg-hover, #2a2a2a);
+        border-color: var(--figma-color-border-strong, #555);
+      }
+
+      #prompt-history-btn:focus-visible {
+        border-color: var(--figma-color-border-brand, #18A0FB);
+        box-shadow: 0 0 0 1px var(--figma-color-border-brand, #18A0FB);
+      }
+
+      #prompt-history-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+
+      /* NEW: Styles for the prompt history dropdown */
+      #prompt-history-dropdown {
+        display: none; /* Hidden by default */
+        position: absolute;
+        /* Position above the buttons */
+        bottom: 48px; /* history-btn height + gap */
+        right: 8px; /* Align with the buttons' right edge */
+        width: calc(100% - 16px); /* Full width minus padding */
+        max-height: 150px; /* Limit height */
+        overflow-y: auto;
+        background: var(--figma-color-bg-secondary, #1F1F20);
+        border: 1px solid var(--figma-color-border-strong, #555);
+        border-radius: 8px;
+        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2);
+        z-index: 20; /* Above textarea */
+        box-sizing: border-box;
+      }
+
+      #prompt-history-dropdown.show {
+        display: block;
+      }
+
+      .prompt-history-item {
+        padding: 8px 12px;
+        color: var(--figma-color-text, #F3F3F3);
+        font-size: 12px;
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-bottom: 1px solid var(--figma-color-border, #363639);
+        transition: background-color 0.1s ease;
+      }
+
+      .prompt-history-item:last-child {
+        border-bottom: none;
+      }
+
+      .prompt-history-item:hover {
+        background-color: var(--figma-color-bg-hover, #2a2a2a);
+      }
+
+      .prompt-history-item:focus-visible {
+         outline: 1px solid var(--figma-color-border-brand, #18A0FB);
+         outline-offset: -1px;
+         background-color: var(--figma-color-bg-hover, #2a2a2a);
+      }
+
+      /* Custom scrollbar for dropdown */
+      #prompt-history-dropdown::-webkit-scrollbar { width: 6px; }
+      #prompt-history-dropdown::-webkit-scrollbar-track { background: transparent; }
+      #prompt-history-dropdown::-webkit-scrollbar-thumb { background-color: var(--figma-color-border-strong, #555); border-radius: 3px; border: 1px solid transparent; background-clip: content-box; }
+      #prompt-history-dropdown::-webkit-scrollbar-thumb:hover { background-color: var(--figma-color-border-stronger, #777); }
+      #prompt-history-dropdown { scrollbar-width: thin; scrollbar-color: var(--figma-color-border-strong, #555) transparent; }
+
+    </style>
+  </head>
+  <body>
+    <div class="plugin-wrapper">
+      <!-- Main Menu Page -->
+      <div class="page" id="main-page" role="main" aria-label="Figma Component Documentation">
+        <div class="container">
+          <!-- Component Selector - REBUILT -->
+          <div class="component-selector">
+            <label for="component-select" class="selector-label">Select a Gator component</label>
+            <select id="component-select" aria-describedby="component-select-description">
+              <option value="Accordion">Accordion</option>
+              <option value="Alert">Alert</option>
+              <option value="Button">Button</option>
+              <option value="Button Icon">Button Icon</option>
+              <option value="Card">Card</option>
+              <!-- <option value="Dialog">Dialog</option> --> // Removed Dialog option
+            </select>
+            <span id="component-select-description" class="visually-hidden">
+              Select a component to view its documentation
+            </span>
+          </div>
+          <!-- End Component Selector -->
+
+          <!-- Question Section -->
+          <div class="question-section">
+            <h2 class="question-title" id="options-heading">Choose from the options below</h2>
+            <div class="options-grid" role="list" aria-labelledby="options-heading">
+              <div class="option" data-type="usage" role="button" tabindex="0" aria-label="View Usage documentation">
+                <div class="option-content">
+                  <div class="option-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M13.3538 4.14625L10.8538 1.64625C10.8073 1.59983 10.7521 1.56303 10.6914 1.53793C10.6307 1.51284 10.5657 1.49995 10.5 1.5H5.5C5.23478 1.5 4.98043 1.60536 4.79289 1.79289C4.60536 1.98043 4.5 2.23478 4.5 2.5V3.5H3.5C3.23478 3.5 2.98043 3.60536 2.79289 3.79289C2.60536 3.98043 2.5 4.23478 2.5 4.5V13.5C2.5 13.7652 2.60536 14.0196 2.79289 14.2071C2.98043 14.3946 3.23478 14.5 3.5 14.5H10.5C10.7652 14.5 11.0196 14.3946 11.2071 14.2071C11.3946 14.0196 11.5 13.7652 11.5 13.5V12.5H12.5C12.7652 12.5 13.0196 12.3946 13.2071 12.2071C13.3946 12.0196 13.5 11.7652 13.5 11.5V4.5C13.5001 4.43432 13.4872 4.36927 13.4621 4.30858C13.437 4.24788 13.4002 4.19272 13.3538 4.14625ZM8.5 12H5.5C5.36739 12 5.24021 11.9473 5.14645 11.8536C5.05268 11.7598 5 11.6326 5 11.5C5 11.3674 5.05268 11.2402 5.14645 11.1464C5.24021 11.0527 5.36739 11 5.5 11H8.5C8.63261 11 8.75979 11.0527 8.85355 11.1464C8.94732 11.2402 9 11.3674 9 11.5C9 11.6326 8.94732 11.7598 8.85355 11.8536C8.75979 11.9473 8.63261 12 8.5 12ZM8.5 10H5.5C5.36739 10 5.24021 9.94732 5.14645 9.85355C5.05268 9.75979 5 9.63261 5 9.5C5 9.36739 5.05268 9.24021 5.14645 9.14645C5.24021 9.05268 5.36739 9 5.5 9H8.5C8.63261 9 8.75979 9.05268 8.85355 9.14645C8.94732 9.24021 9 9.36739 9 9.5C9 9.63261 8.94732 9.75979 8.85355 9.85355C8.75979 9.94732 8.63261 10 8.5 10ZM12.5 11.5H11.5V6.5C11.5001 6.43432 11.4872 6.36927 11.4621 6.30858C11.437 6.24788 11.4002 6.19272 11.3538 6.14625L8.85375 3.64625C8.80728 3.59983 8.75212 3.56303 8.69143 3.53793C8.63073 3.51284 8.56568 3.49995 8.5 3.5H5.5V2.5H10.2931L12.5 4.70688V11.5Z" fill="#14AE5C"/>
+                    </svg>
+                  </div>
+                  Usage
+                </div>
+                <div class="chevron-right">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M6 12L10 8L6 4"
+                      stroke="#F3F3F3"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <div class="option" data-type="best-practices" role="button" tabindex="0" aria-label="View Best Practices documentation">
+                <div class="option-content">
+                  <div class="option-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M14.1163 6.42625C13.8806 6.18 13.6369 5.92625 13.545 5.70312C13.46 5.49875 13.455 5.16 13.45 4.83187C13.4406 4.22187 13.4306 3.53062 12.95 3.05C12.4694 2.56937 11.7781 2.55937 11.1681 2.55C10.84 2.545 10.5013 2.54 10.2969 2.455C10.0744 2.36312 9.82 2.11937 9.57375 1.88375C9.1425 1.46937 8.6525 1 8 1C7.3475 1 6.85812 1.46937 6.42625 1.88375C6.18 2.11937 5.92625 2.36312 5.70312 2.455C5.5 2.54 5.16 2.545 4.83187 2.55C4.22187 2.55937 3.53062 2.56937 3.05 3.05C2.56937 3.53062 2.5625 4.22187 2.55 4.83187C2.545 5.16 2.54 5.49875 2.455 5.70312C2.36312 5.92562 2.11937 6.18 1.88375 6.42625C1.46937 6.8575 1 7.3475 1 8C1 8.6525 1.46937 9.14187 1.88375 9.57375C2.11937 9.82 2.36312 10.0737 2.455 10.2969C2.54 10.5013 2.545 10.84 2.55 11.1681C2.55937 11.7781 2.56937 12.4694 3.05 12.95C3.53062 13.4306 4.22187 13.4406 4.83187 13.45C5.16 13.455 5.49875 13.46 5.70312 13.545C5.92562 13.6369 6.18 13.8806 6.42625 14.1163C6.8575 14.5306 7.3475 15 8 15C8.6525 15 9.14187 14.5306 9.57375 14.1163C9.82 13.8806 10.0737 13.6369 10.2969 13.545C10.5013 13.46 10.84 13.455 11.1681 13.45C11.7781 13.4406 12.4694 13.4306 12.95 12.95C13.4306 12.4694 13.4406 11.7781 13.45 11.1681C13.455 10.84 13.46 10.5013 13.545 10.2969C13.6369 10.0744 13.8806 9.82 14.1163 9.57375C14.5306 9.1425 15 8.6525 15 8C15 7.3475 14.5306 6.85812 14.1163 6.42625ZM10.8538 6.85375L7.35375 10.3538C7.30731 10.4002 7.25217 10.4371 7.19147 10.4623C7.13077 10.4874 7.06571 10.5004 7 10.5004C6.93429 10.5004 6.86923 10.4874 6.80853 10.4623C6.74783 10.4371 6.69269 10.4002 6.64625 10.3538L5.14625 8.85375C5.05243 8.75993 4.99972 8.63268 4.99972 8.5C4.99972 8.36732 5.05243 8.24007 5.14625 8.14625C5.24007 8.05243 5.36732 7.99972 5.5 7.99972C5.63268 7.99972 5.75993 8.05243 5.85375 8.14625L7 9.29313L10.1462 6.14625C10.1927 6.09979 10.2479 6.06294 10.3086 6.0378C10.3692 6.01266 10.4343 5.99972 10.5 5.99972C10.5657 5.99972 10.6308 6.01266 10.6914 6.0378C10.7521 6.06294 10.8073 6.09979 10.8538 6.14625C10.9002 6.1927 10.9371 6.24786 10.9622 6.30855C10.9873 6.36925 11.0003 6.4343 11.0003 6.5C11.0003 6.5657 10.9873 6.63075 10.9622 6.69145C10.9371 6.75214 10.9002 6.8073 10.8538 6.85375Z" fill="#14AE5C"/>
+                    </svg>
+                  </div>
+                  Best Practices
+                </div>
+                <div class="chevron-right">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M6 12L10 8L6 4"
+                      stroke="#F3F3F3"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <div class="option" data-type="dos-and-donts" role="button" tabindex="0" aria-label="View Do's and Don'ts documentation">
+                <div class="option-content">
+                  <div class="option-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M13.5 9H12.5V5H13.5C13.6326 5 13.7598 4.94732 13.8536 4.85355C13.9473 4.75979 14 4.63261 14 4.5C14 4.36739 13.9473 4.24022 13.8536 4.14645C13.7598 4.05268 13.6326 4 13.5 4H12.5V2.5C12.5 2.23478 12.3946 1.98043 12.2071 1.79289C12.0196 1.60536 11.7652 1.5 11.5 1.5H4.5C4.23478 1.5 3.98043 1.60536 3.79289 1.79289C3.60536 1.98043 3.5 2.23478 3.5 2.5V4H2.5C2.36739 4 2.24022 4.05268 2.14645 4.14645C2.05268 4.24022 2 4.36739 2 4.5C2 4.63261 2.05268 4.75979 2.14645 4.85355C2.24022 4.94732 2.36739 5 2.5 5H3.5V9H2.5C2.36739 9 2.24022 9.05268 2.14645 9.14645C2.05268 9.24022 2 9.36739 2 9.5C2 9.63261 2.05268 9.75979 2.14645 9.85355C2.24022 9.94732 2.36739 10 2.5 10H3.5V13.5C3.5 13.7652 3.60536 14.0196 3.79289 14.2071C3.98043 14.3946 4.23478 14.5 4.5 14.5H11.5C11.7652 14.5 12.0196 14.3946 12.2071 14.2071C12.3946 14.0196 12.5 13.7652 12.5 13.5V10H13.5C13.6326 10 13.7598 9.94732 13.8536 9.85355C13.9473 9.75979 14 9.63261 14 9.5C14 9.36739 13.9473 9.24022 13.8536 9.14645C13.7598 9.05268 13.6326 9 13.5 9ZM8 7.25C7.65388 7.25 7.31554 7.14736 7.02775 6.95507C6.73997 6.76278 6.51566 6.48947 6.38321 6.1697C6.25076 5.84993 6.2161 5.49806 6.28363 5.15859C6.35115 4.81912 6.51782 4.50731 6.76256 4.26256C7.00731 4.01782 7.31913 3.85115 7.65859 3.78363C7.99806 3.7161 8.34993 3.75076 8.6697 3.88321C8.98947 4.01566 9.26278 4.23997 9.45507 4.52775C9.64736 4.81554 9.75 5.15388 9.75 5.5C9.75 5.96413 9.56563 6.40925 9.23744 6.73744C8.90925 7.06563 8.46413 7.25 8 7.25ZM8 8.75C8.34612 8.75 8.68446 8.85264 8.97225 9.04493C9.26003 9.23722 9.48434 9.51053 9.61679 9.8303C9.74924 10.1501 9.7839 10.5019 9.71637 10.8414C9.64885 11.1809 9.48218 11.4927 9.23744 11.7374C8.9927 11.9822 8.68087 12.1489 8.34141 12.2164C8.00194 12.2839 7.65007 12.2492 7.3303 12.1168C7.01053 11.9843 6.73722 11.76 6.54493 11.4722C6.35264 11.1845 6.25 10.8461 6.25 10.5C6.25 10.0359 6.43437 9.59075 6.76256 9.26256C7.09075 8.93437 7.53587 8.75 8 8.75Z" fill="#14AE5C"/>
+                    </svg>
+                  </div>
+                  Do's & Don'ts
+                </div>
+                <div class="chevron-right">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M6 12L10 8L6 4"
+                      stroke="#F3F3F3"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <div class="option" data-type="accessibility" role="button" tabindex="0" aria-label="View Accessibility documentation">
+                <div class="option-content">
+                  <div class="option-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 1.5C6.71442 1.5 5.45772 1.88122 4.3888 2.59545C3.31988 3.30968 2.48676 4.32484 1.99479 5.51256C1.50282 6.70028 1.37409 8.00721 1.6249 9.26809C1.8757 10.529 2.49477 11.6872 3.40381 12.5962C4.31285 13.5052 5.47104 14.1243 6.73192 14.3751C7.99279 14.6259 9.29972 14.4972 10.4874 14.0052C11.6752 13.5132 12.6903 12.6801 13.4046 11.6112C14.1188 10.5423 14.5 9.28558 14.5 8C14.4982 6.27665 13.8128 4.62441 12.5942 3.40582C11.3756 2.18722 9.72335 1.50182 8 1.5ZM8 4C8.19778 4 8.39112 4.05865 8.55557 4.16853C8.72002 4.27841 8.84819 4.43459 8.92388 4.61732C8.99957 4.80004 9.01937 5.00111 8.98079 5.19509C8.9422 5.38907 8.84696 5.56725 8.70711 5.70711C8.56726 5.84696 8.38907 5.9422 8.19509 5.98078C8.00111 6.01937 7.80005 5.99957 7.61732 5.92388C7.43459 5.84819 7.27841 5.72002 7.16853 5.55557C7.05865 5.39112 7 5.19778 7 5C7 4.73478 7.10536 4.48043 7.2929 4.29289C7.48043 4.10536 7.73479 4 8 4ZM11 7.5H8.5V8.34875L10.4163 11.2237C10.4899 11.3341 10.5166 11.4693 10.4906 11.5994C10.4645 11.7295 10.3879 11.8439 10.2775 11.9175C10.1671 11.9911 10.032 12.0178 9.90189 11.9918C9.77179 11.9658 9.65735 11.8891 9.58375 11.7787L8 9.40375L6.41625 11.7787C6.37981 11.8334 6.33296 11.8804 6.27837 11.9169C6.22379 11.9535 6.16253 11.9789 6.09811 11.9918C5.96801 12.0178 5.8329 11.9911 5.7225 11.9175C5.61211 11.8439 5.53547 11.7295 5.50945 11.5994C5.48343 11.4693 5.51015 11.3341 5.58375 11.2237L7.5 8.34875V7.5H5C4.86739 7.5 4.74022 7.44732 4.64645 7.35355C4.55268 7.25978 4.5 7.13261 4.5 7C4.5 6.86739 4.55268 6.74021 4.64645 6.64645C4.74022 6.55268 4.86739 6.5 5 6.5H11C11.1326 6.5 11.2598 6.55268 11.3536 6.64645C11.4473 6.74021 11.5 6.86739 11.5 7C11.5 7.13261 11.4473 7.25979 11.3536 7.35355C11.2598 7.44732 11.1326 7.5 11 7.5Z" fill="#14AE5C"/>
+                    </svg>
+                  </div>
+                  Accessibility
+                </div>
+                <div class="chevron-right">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M6 12L10 8L6 4"
+                      stroke="#F3F3F3"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <!-- Restore Storybook option -->
+              <div class="option" data-type="storybook" role="button" tabindex="0" aria-label="View Storybook Link for this component">
+                <div class="option-content">
+                  <div class="option-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path fill-rule="evenodd" clip-rule="evenodd" d="M11.1306 0.17006L11.0554 1.97945C11.0542 2.00726 11.0628 2.03461 11.0796 2.05679C11.1196 2.10948 11.1947 2.11979 11.2474 2.07983L11.9502 1.54667L12.5439 2.01432C12.5661 2.03184 12.5939 2.04091 12.6222 2.03992C12.6883 2.03762 12.74 1.98217 12.7377 1.91607L12.6733 0.073641L13.5546 0.0185583C13.9971 -0.00909627 14.3782 0.32718 14.4059 0.769653C14.4069 0.786324 14.4074 0.803023 14.4074 0.819726V15.1803C14.4074 15.6236 14.0481 15.983 13.6047 15.983C13.5927 15.983 13.5807 15.9827 13.5687 15.9822L2.85386 15.501C2.43656 15.4822 2.10338 15.1466 2.08771 14.7292L1.59312 1.55042C1.57678 1.11518 1.91051 0.746317 2.34521 0.719148L11.1306 0.17006ZM11.4727 5.97804C11.1903 6.19742 9.08665 6.3471 9.08665 6.03479C9.13111 4.84308 8.59758 4.79083 8.30117 4.79083C8.01959 4.79083 7.54534 4.87596 7.54534 5.51437C7.54534 6.16495 8.2384 6.53223 9.05188 6.96332C10.2075 7.57571 11.6061 8.31688 11.6061 10.1819C11.6061 11.9695 10.1537 12.9569 8.30117 12.9569C6.38935 12.9569 4.71863 12.1834 4.90732 9.50177C4.98142 9.18687 7.41195 9.26171 7.41195 9.50177C7.38231 10.6084 7.63426 10.9338 8.27153 10.9338C8.7606 10.9338 8.98291 10.6643 8.98291 10.2103C8.98291 9.52323 8.26079 9.1178 7.43008 8.65141C6.3053 8.0199 4.98142 7.27662 4.98142 5.57112C4.98142 3.86868 6.15223 2.73371 8.24189 2.73371C10.3316 2.73371 11.4727 3.85129 11.4727 5.97804Z" fill="#14AE5C"/>
+                    </svg>
+                  </div>
+                  View on Storybook
+                </div>
+                <div class="external-link-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M9.47059 4.17647C9.14572 4.17647 8.88235 3.91311 8.88235 3.58824C8.88235 3.26336 9.14572 3 9.47059 3H12.4118C12.7366 3 13 3.26336 13 3.58824V6.52941C13 6.85429 12.7366 7.11765 12.4118 7.11765C12.0869 7.11765 11.8235 6.85429 11.8235 6.52941V5.00836L7.43555 9.39634C7.20583 9.62606 6.83338 9.62606 6.60366 9.39634C6.37394 9.16662 6.37394 8.79417 6.60366 8.56445L10.9916 4.17647H9.47059ZM4.56863 5.64706C4.46462 5.64706 4.36487 5.68838 4.29133 5.76192C4.21779 5.83546 4.17647 5.93521 4.17647 6.03922V11.4314C4.17647 11.5354 4.21779 11.6351 4.29133 11.7087C4.36487 11.7822 4.46462 11.8235 4.56863 11.8235H9.96079C10.0648 11.8235 10.1645 11.7822 10.2381 11.7087C10.3116 11.6351 10.3529 11.5354 10.3529 11.4314V8.4902C10.3529 8.16532 10.6163 7.90196 10.9412 7.90196C11.2661 7.90196 11.5294 8.16532 11.5294 8.4902V11.4314C11.5294 11.8474 11.3641 12.2464 11.07 12.5406C10.7758 12.8347 10.3768 13 9.96079 13H4.56863C4.1526 13 3.75362 12.8347 3.45944 12.5406C3.16527 12.2464 3 11.8474 3 11.4314V6.03922C3 5.62319 3.16527 5.2242 3.45944 4.93003C3.75362 4.63585 4.1526 4.47059 4.56863 4.47059H7.5098C7.83468 4.47059 8.09804 4.73395 8.09804 5.05882C8.09804 5.3837 7.83468 5.64706 7.5098 5.64706H4.56863Z" fill="#F3F3F3"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Section MOVED FROM HERE -->
+
+        </div> <!-- End Container -->
+
+        <!-- AI Section MOVED HERE -->
+        <div class="ai-section">
+          <h2 class="ai-section-title" id="ai-heading">Other general component queries</h2>
+          <div class="ai-input">
+            <label for="ai-question" class="visually-hidden">Ask a question about the component</label>
+            <!-- Wrap textarea and button -->
+            <div class="ai-input-area">
+              <textarea
+                id="ai-question"
+                placeholder="Ask a specific question about the component."
+                aria-labelledby="ai-heading"
+                aria-describedby="ai-description"
+              ></textarea>
+              <!-- NEW: Prompt History Dropdown -->
+              <button id="prompt-history-btn" type="button" aria-label="View recent prompts" aria-haspopup="listbox" aria-expanded="false">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M8.5 0a.5.5 0 0 1 .5.5V8a.5.5 0 0 1-.5.5H4.5a.5.5 0 0 1 0-1H8V.5a.5.5 0 0 1 .5-.5z"/>
+                    <path fill-rule="evenodd" d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+                  </svg>
+              </button>
+              <div id="prompt-history-dropdown" role="listbox" tabindex="-1" aria-labelledby="prompt-history-btn">
+                <!-- History items will be added here by JS -->
+              </div>
+              <!-- Ask AI Button -->
+              <button id="ask-ai" type="button" aria-label="Ask AI your question">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+                  <g clip-path="url(#clip0_25_37)">
+                    <path d="M13 9C13.0013 9.20387 12.9393 9.40311 12.8227 9.57033C12.7061 9.73754 12.5405 9.86451 12.3487 9.93375L9.12499 11.125L7.93749 14.3513C7.86717 14.5423 7.73994 14.7072 7.57297 14.8236C7.406 14.9401 7.20732 15.0025 7.00374 15.0025C6.80017 15.0025 6.60149 14.9401 6.43452 14.8236C6.26755 14.7072 6.14032 14.5423 6.06999 14.3513L4.87499 11.125L1.64874 9.9375C1.4577 9.86718 1.29282 9.73995 1.17636 9.57298C1.0599 9.406 0.997452 9.20733 0.997452 9.00375C0.997452 8.80017 1.0599 8.6015 1.17636 8.43453C1.29282 8.26755 1.4577 8.14032 1.64874 8.07L4.87499 6.875L6.06249 3.64875C6.13282 3.45771 6.26005 3.29283 6.42702 3.17637C6.59399 3.0599 6.79267 2.99746 6.99624 2.99746C7.19982 2.99746 7.3985 3.0599 7.56547 3.17637C7.73244 3.29283 7.85967 3.45771 7.92999 3.64875L9.12499 6.875L12.3512 8.0625C12.5431 8.13237 12.7086 8.26009 12.8248 8.42801C12.941 8.59594 13.0022 8.7958 13 9ZM9.49999 3H10.5V4C10.5 4.13261 10.5527 4.25979 10.6464 4.35355C10.7402 4.44732 10.8674 4.5 11 4.5C11.1326 4.5 11.2598 4.44732 11.3535 4.35355C11.4473 4.25979 11.5 4.13261 11.5 4V3H12.5C12.6326 3 12.7598 2.94732 12.8535 2.85355C12.9473 2.75979 13 2.63261 13 2.5C13 2.36739 12.9473 2.24022 12.8535 2.14645C12.7598 2.05268 12.6326 2 12.5 2H11.5V1C11.5 0.867392 11.4473 0.740215 11.3535 0.646447C11.2598 0.552678 11.1326 0.5 11 0.5C10.8674 0.5 10.7402 0.552678 10.6464 0.646447C10.5527 0.740215 10.5 0.867392 10.5 1V2H9.49999C9.36738 2 9.24021 2.05268 9.14644 2.14645C9.05267 2.24022 8.99999 2.36739 8.99999 2.5C8.99999 2.63261 9.05267 2.75979 9.14644 2.85355C9.24021 2.94732 9.36738 3 9.49999 3ZM15 5H14.5V4.5C14.5 4.36739 14.4473 4.24022 14.3535 4.14645C14.2598 4.05268 14.1326 4 14 4C13.8674 4 13.7402 4.05268 13.6464 4.14645C13.5527 4.24022 13.5 4.36739 13.5 4.5V5H13C12.8674 5 12.7402 5.05268 12.6464 5.14645C12.5527 5.24022 12.5 5.36739 12.5 5.5C12.5 5.63261 12.5527 5.75979 12.6464 5.85355C12.7402 5.94732 12.8674 6 13 6H13.5V6.5C13.5 6.63261 13.5527 6.75979 13.6464 6.85355C13.7402 6.94732 13.8674 7 14 7C14.1326 7 14.2598 6.94732 14.3535 6.85355C14.4473 6.75979 14.5 6.63261 14.5 6.5V6H15C15.1326 6 15.2598 5.94732 15.3535 5.85355C15.4473 5.75979 15.5 5.63261 15.5 5.5C15.5 5.36739 15.4473 5.24022 15.3535 5.14645C15.2598 5.05268 15.1326 5 15 5Z" fill="currentColor"/>
+                  </g>
+                  <defs>
+                    <clipPath id="clip0_25_37">
+                      <rect width="16" height="16" fill="white"/>
+                    </clipPath>
+                  </defs>
+                </svg>
+                Ask AI
+              </button>
+            </div>
+            <span id="ai-description" class="visually-hidden">
+              Type your question about the component and press the Ask AI button, or view recent prompts using the history button.
+            </span>
+            <!-- Button moved inside ai-input-area -->
+          </div>
+        </div> <!-- End AI Section -->
+
+      </div> <!-- End Main Page -->
+
+      <!-- Content Page -->
+      <div class="page hidden" id="content-page" role="region" aria-label="Component Documentation Content" inert="true">
+          <div class="content-header">
+              <!-- Ensure Back Button has SVG -->
+              <button class="back-button" id="back-button" type="button" aria-label="Go back to component selection">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                      <path d="M10 13L5 8L10 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                   Back 
+              </button>
+              <!-- Restore tab navigation -->
+              <div class="tab-navigation" id="tab-navigation">
+                  <button class="tab" data-type="usage" role="tab" aria-selected="false">Usage</button>
+                  <button class="tab" data-type="best-practices" role="tab" aria-selected="false">Best Practices</button>
+                  <button class="tab" data-type="dos-and-donts" role="tab" aria-selected="false">Do's & Don'ts</button>
+                  <button class="tab" data-type="accessibility" role="tab" aria-selected="false">Accessibility</button>
+              </div>
+          </div>
+          <div class="content-scroll">
+              <h1 id="content-title"></h1>
+              
+              <!-- Static Documentation Body -->
+              <div id="content-body"></div>
+              
+              <!-- Loading State (Centered) -->
+              <div class="loading-state" id="loading-state">
+                  <!-- Original Spinner/Text (will be hidden by CSS when skeleton active) -->
+                  <div class="spinner"></div>
+                  <span class="shimmer-text">Processing your request...</span>
+                  <!-- Skeleton Loader Structure -->
+                  <div class="skeleton-loader">
+                      <div class="skeleton-textarea"></div>
+                      <div class="skeleton-button"></div>
+                  </div>
+              </div>
+
+              <!-- AI Response Area (Now uses a Div) -->
+              <div id="ai-response-container" class="hidden">
+                  <!-- Removed <label> -->
+                  <div id="ai-response-content" aria-live="polite"></div> <!-- Replaced textarea -->
+                  <button id="copy-response-button" class="copy-button" type="button">
+                      <!-- Default State -->
+                      <span class="btn-content default-state">
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                          <path d="M13.3333 6H7.33333C6.59695 6 6 6.59695 6 7.33333V13.3333C6 14.0697 6.59695 14.6667 7.33333 14.6667H13.3333C14.0697 14.6667 14.6667 14.0697 14.6667 13.3333V7.33333C14.6667 6.59695 14.0697 6 13.3333 6Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                          <path d="M3.33333 10H2.66667C2.31305 10 1.97391 9.85953 1.72386 9.60948C1.47381 9.35943 1.33334 9.02029 1.33334 8.66667V2.66667C1.33334 2.31305 1.47381 1.97391 1.72386 1.72386C1.97391 1.47381 2.31305 1.33334 2.66667 1.33334H8.66667C9.02029 1.33334 9.35943 1.47381 9.60948 1.72386C9.85953 1.97391 10 2.31305 10 2.66667V3.33334" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                          <span>Copy Response</span>
+                      </span>
+                      <!-- Success State -->
+                      <span class="btn-content success-state">
+                           <!-- Replace old SVG with new one -->
+                           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                              <g clip-path="url(#clip0_72_131)">
+                              <path fill-rule="evenodd" clip-rule="evenodd" d="M10.4963 2.39385C9.28815 1.85555 7.93841 1.72219 6.64832 2.01367C5.35823 2.30515 4.19693 3.00584 3.3376 4.01125C2.47828 5.01666 1.96697 6.27291 1.87995 7.59265C1.79293 8.91239 2.13485 10.2249 2.85471 11.3344C3.57458 12.444 4.63382 13.2911 5.87446 13.7495C7.11511 14.2078 8.47068 14.2528 9.73901 13.8778C11.0073 13.5028 12.1205 12.7279 12.9124 11.6686C13.7043 10.6092 14.1326 9.32232 14.1333 7.99971V7.38669C14.1333 7.09213 14.3721 6.85335 14.6667 6.85335C14.9612 6.85335 15.2 7.09213 15.2 7.38669V8.00002C15.1991 9.55264 14.6964 11.0637 13.7667 12.3072C12.8371 13.5508 11.5304 14.4605 10.0414 14.9007C8.55254 15.341 6.96122 15.2881 5.50481 14.75C4.0484 14.212 2.80494 13.2175 1.95988 11.915C1.11482 10.6125 0.713437 9.07173 0.815595 7.52247C0.917753 5.97321 1.51798 4.49848 2.52675 3.31822C3.53552 2.13795 4.89879 1.3154 6.41324 0.97323C7.9277 0.63106 9.51218 0.787607 10.9304 1.41953C11.1994 1.53941 11.3204 1.8547 11.2005 2.12375C11.0806 2.39281 10.7653 2.51373 10.4963 2.39385ZM15.0436 2.28937C15.252 2.49755 15.2521 2.83524 15.044 3.04362L8.3773 9.71695C8.2773 9.81706 8.14162 9.87332 8.00013 9.87335C7.85863 9.87339 7.72292 9.81719 7.62287 9.71714L5.62287 7.71714C5.41459 7.50886 5.41459 7.17118 5.62287 6.9629C5.83115 6.75462 6.16884 6.75462 6.37712 6.9629L7.9998 8.58558L14.2893 2.28975C14.4975 2.08137 14.8352 2.0812 15.0436 2.28937Z" fill="#14AE5C"/>
+                              </g>
+                              <defs>
+                              <clipPath id="clip0_72_131">
+                              <rect width="16" height="16" fill="white"/>
+                              </clipPath>
+                              </defs>
+                          </svg>
+                          <span>Copied!</span>
+                      </span>
+                  </button>
+              </div>
+          </div>
+      </div>
+    </div>
+
+    <!-- Reimplemented resize grabber -->
+    <div id="resize-grabber" title="Resize plugin window" role="button" tabindex="0" aria-label="Resize plugin window">
+      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true" focusable="false">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M0.646454 8.09399L8.09402 0.646423L8.80113 1.35353L1.35356 8.8011L0.646454 8.09399ZM4.92268 8.64642L8.64647 4.92264L9.35357 5.62975L5.62979 9.35353L4.92268 8.64642Z" fill="#B3B3B3"/>
+      </svg>
+    </div>
+
+    <script>
+      // DOM Elements
+      const mainPage = document.getElementById('main-page');
+      const contentPage = document.getElementById('content-page');
+      const options = document.querySelectorAll('.option');
+      const backButton = document.getElementById('back-button');
+      const contentTitle = document.getElementById('content-title');
+      const contentBody = document.getElementById('content-body'); // For static docs
+      const aiQuestionInput = document.getElementById('ai-question');
+      const askAiButton = document.getElementById('ask-ai');
+      const componentSelect = document.getElementById('component-select');
+      const closeButton = document.querySelector('.close-button'); // Assuming it exists
+      const tabNavigation = document.getElementById('tab-navigation'); // Added reference
+      const tabs = document.querySelectorAll('.tab');
+      const aiResponseContainer = document.getElementById('ai-response-container'); // For AI response
+      const aiResponseContent = document.getElementById('ai-response-content'); // New div element
+      const copyResponseButton = document.getElementById('copy-response-button');
+      const loadingState = document.getElementById('loading-state');
+      const promptHistoryBtn = document.getElementById('prompt-history-btn'); // New
+      const promptHistoryDropdown = document.getElementById('prompt-history-dropdown'); // New
+
+      // Sample component data (keep for fallback/initial load)
+      const sampleComponentData = {
+        Button: {
+          name: "Button",
+          description: "Interactive elements that trigger actions when clicked",
+          usage: `
+            <p>Buttons are interactive elements that trigger actions when clicked.</p>
+            <h4>Common Use Cases:</h4>
+            <ul>
+                <li>Form submissions</li>
+                <li>Modal triggers</li>
+                <li>Navigation actions</li>
+                <li>Confirmation dialogs</li>
+            </ul>
+          `,
+          bestPractices: `
+            <ul>
+                <li>Use clear, action-oriented labels</li>
+                <li>Maintain consistent styling across the application</li>
+                <li>Follow hierarchy principles with primary and secondary buttons</li>
+                <li>Ensure adequate spacing between multiple buttons</li>
+            </ul>
+          `,
+          dosAndDonts: `
+            <h4>Do:</h4>
+            <ul>
+                <li>Use verb-first labels for actions</li>
+                <li>Maintain consistent padding</li>
+                <li>Include loading states for async actions</li>
+                <li>Use icons to enhance meaning when appropriate</li>
+            </ul>
+            <h4>Don't:</h4>
+            <ul>
+                <li>Use generic labels like "Click Here"</li>
+                <li>Overcrowd buttons with too much text</li>
+                <li>Use too many primary buttons on one page</li>
+                <li>Disable buttons without clear reason</li>
+            </ul>
+          `,
+          accessibility: `
+            <h4>Requirements:</h4>
+            <ul>
+                <li>Must be keyboard accessible</li>
+                <li>Should have ARIA labels when needed</li>
+                <li>Must have sufficient color contrast</li>
+            </ul>
+            <h4>WCAG Compliance:</h4>
+            <ul>
+                <li>Meets WCAG 2.1 Level AA requirements</li>
+                <li>Ensures proper focus states</li>
+                <li>Maintains minimum contrast ratios</li>
+            </ul>
+          `,
+          storybookUrl: "https://release--647602387404abb8d86f89f6.chromatic.com/?path=/story/components-button--example"
+        },
+        "Button Icon": {
+          name: "Button Icon",
+          description: "Icon-only buttons for compact and visual interactions",
+          usage: `
+            <p>Icon buttons provide a compact way to display interactive controls using only an icon.</p>
+            <h4>Common Use Cases:</h4>
+            <ul>
+                <li>Toolbar actions</li>
+                <li>Close buttons</li>
+                <li>Toggle controls</li>
+                <li>Action menus</li>
+                <li>Navigation controls</li>
+            </ul>
+          `,
+          bestPractices: `
+            <ul>
+                <li>Always include tooltips to explain the icon's function</li>
+                <li>Use universally recognized icons</li>
+                <li>Maintain consistent sizing within the same context</li>
+                <li>Ensure touch targets are large enough (minimum 44x44px)</li>
+                <li>Provide clear visual feedback for interactive states</li>
+            </ul>
+          `,
+          dosAndDonts: `
+            <h4>Do:</h4>
+            <ul>
+                <li>Use standard, easily recognizable icons</li>
+                <li>Include tooltips for clarity</li>
+                <li>Maintain consistent spacing</li>
+                <li>Ensure clear hover and active states</li>
+                <li>Group related icon buttons logically</li>
+            </ul>
+            <h4>Don't:</h4>
+            <ul>
+                <li>Use abstract or complex icons without labels</li>
+                <li>Place icon buttons too close together</li>
+                <li>Use widely varying icon sizes</li>
+                <li>Rely solely on color for state indication</li>
+                <li>Omit tooltips or accessible labels</li>
+            </ul>
+          `,
+          accessibility: `
+            <h4>Requirements:</h4>
+            <ul>
+                <li>Must have descriptive aria-labels</li>
+                <li>Should have tooltips for clarity</li>
+                <li>Must maintain minimum touch target size</li>
+                <li>Must have sufficient color contrast</li>
+            </ul>
+            <h4>WCAG Compliance:</h4>
+            <ul>
+                <li>Include aria-label for screen readers</li>
+                <li>Maintain touch target size of 44x44px</li>
+                <li>Ensure sufficient color contrast</li>
+                <li>Provide keyboard focus indicators</li>
+            </ul>
+          `,
+          storybookUrl: "https://release--647602387404abb8d86f89f6.chromatic.com/?path=/story/components-button--example"
+        },
+        Accordion: {
+          name: "Accordion",
+          description: "Expandable and collapsible content sections for organizing information",
+          usage: `
+            <p>Accordions help organize and present complex information in a compact, expandable format.</p>
+            <h4>Common Use Cases:</h4>
+            <ul>
+                <li>FAQ sections</li>
+                <li>Product specifications</li>
+                <li>Navigation menus</li>
+                <li>Settings panels</li>
+                <li>Content organization</li>
+            </ul>
+          `,
+          bestPractices: `
+            <ul>
+                <li>Keep header titles clear and descriptive</li>
+                <li>Use consistent expand/collapse indicators</li>
+                <li>Group related content within sections</li>
+                <li>Consider if multiple sections can be open simultaneously</li>
+                <li>Ensure smooth animations for state changes</li>
+            </ul>
+          `,
+          dosAndDonts: `
+            <h4>Do:</h4>
+            <ul>
+                <li>Use clear, descriptive headers</li>
+                <li>Maintain consistent styling</li>
+                <li>Provide visual feedback for interactions</li>
+                <li>Consider mobile responsiveness</li>
+                <li>Use appropriate spacing between sections</li>
+            </ul>
+            <h4>Don't:</h4>
+            <ul>
+                <li>Nest accordions too deeply</li>
+                <li>Use for primary navigation</li>
+                <li>Hide critical information</li>
+                <li>Overload with content</li>
+                <li>Use inconsistent animations</li>
+            </ul>
+          `,
+          accessibility: `
+            <h4>Requirements:</h4>
+            <ul>
+                <li>Must be keyboard navigable</li>
+                <li>Should use proper ARIA attributes</li>
+                <li>Must indicate expanded/collapsed state</li>
+                <li>Should announce state changes</li>
+            </ul>
+            <h4>WCAG Compliance:</h4>
+            <ul>
+                <li>Use aria-expanded attribute</li>
+                <li>Implement keyboard controls</li>
+                <li>Maintain focus management</li>
+                <li>Provide clear visual indicators</li>
+            </ul>
+          `,
+          storybookUrl: "https://release--647602387404abb8d86f89f6.chromatic.com/?path=/story/components-accordion-single-accordion--accordion-example"
+        },
+        Alert: {
+          name: "Alert",
+          description: "Informational messages that provide feedback or status updates",
+          usage: `
+            <p>Alerts display important messages or feedback to users in response to their actions or system events.</p>
+            <h4>Common Use Cases:</h4>
+            <ul>
+                <li>Success confirmations</li>
+                <li>Error notifications</li>
+                <li>Warning messages</li>
+                <li>Information updates</li>
+                <li>System status changes</li>
+            </ul>
+          `,
+          bestPractices: `
+            <ul>
+                <li>Use appropriate colors for different alert types</li>
+                <li>Keep messages clear and concise</li>
+                <li>Position alerts logically near relevant content</li>
+                <li>Consider alert persistence duration</li>
+                <li>Provide actionable information when needed</li>
+            </ul>
+          `,
+          dosAndDonts: `
+            <h4>Do:</h4>
+            <ul>
+                <li>Use clear, actionable language</li>
+                <li>Include relevant icons for quick recognition</li>
+                <li>Maintain consistent positioning</li>
+                <li>Allow dismissal when appropriate</li>
+                <li>Use appropriate color coding</li>
+            </ul>
+            <h4>Don't:</h4>
+            <ul>
+                <li>Use too many alerts simultaneously</li>
+                <li>Block important content</li>
+                <li>Use alerts for non-important information</li>
+                <li>Rely solely on color for meaning</li>
+                <li>Auto-dismiss critical errors</li>
+            </ul>
+          `,
+          accessibility: `
+            <h4>Requirements:</h4>
+            <ul>
+                <li>Must use appropriate ARIA roles</li>
+                <li>Should be announced by screen readers</li>
+                <li>Must not rely solely on color</li>
+                <li>Should be keyboard dismissible</li>
+            </ul>
+            <h4>WCAG Compliance:</h4>
+            <ul>
+                <li>Use role="alert" appropriately</li>
+                <li>Ensure sufficient color contrast</li>
+                <li>Provide focus management</li>
+                <li>Include clear error messages</li>
+            </ul>
+          `,
+          storybookUrl: "https://release--647602387404abb8d86f89f6.chromatic.com/?path=/story/components-alert--alert-example"
+        },
+        Card: {
+          name: "Card",
+          description: "Container components that group related content and actions",
+          usage: `
+            <p>Cards are versatile containers that group related content and actions together in a visually distinct way.</p>
+            <h4>Common Use Cases:</h4>
+            <ul>
+                <li>Product displays</li>
+                <li>Dashboard widgets</li>
+                <li>Content previews</li>
+                <li>Profile information</li>
+                <li>Feature highlights</li>
+            </ul>
+          `,
+          bestPractices: `
+            <ul>
+                <li>Maintain consistent padding and spacing</li>
+                <li>Use clear visual hierarchy</li>
+                <li>Keep content focused and related</li>
+                <li>Consider responsive behavior</li>
+                <li>Use appropriate elevation levels</li>
+            </ul>
+          `,
+          dosAndDonts: `
+            <h4>Do:</h4>
+            <ul>
+                <li>Group related content together</li>
+                <li>Use consistent layouts</li>
+                <li>Provide clear actions when needed</li>
+                <li>Consider mobile responsiveness</li>
+                <li>Maintain adequate spacing</li>
+            </ul>
+            <h4>Don't:</h4>
+            <ul>
+                <li>Overcrowd with content</li>
+                <li>Mix unrelated information</li>
+                <li>Use inconsistent spacing</li>
+                <li>Nest cards unnecessarily</li>
+                <li>Ignore content hierarchy</li>
+            </ul>
+          `,
+          accessibility: `
+            <h4>Requirements:</h4>
+            <ul>
+                <li>Should use semantic HTML structure</li>
+                <li>Must maintain proper heading hierarchy</li>
+                <li>Should have clear focus states</li>
+                <li>Must be keyboard navigable</li>
+            </ul>
+            <h4>WCAG Compliance:</h4>
+            <ul>
+                <li>Use proper heading structure</li>
+                <li>Ensure sufficient color contrast</li>
+                <li>Maintain logical tab order</li>
+                <li>Provide clear focus indicators</li>
+            </ul>
+          `,
+          storybookUrl: "https://release--647602387404abb8d86f89f6.chromatic.com/?path=/story/components-card--gator-card"
+        }
+      };
+
+      let currentComponent = 'Button';
+      let currentTab = 'usage'; // Track the current active tab for static docs
+      let allComponentDocs = sampleComponentData; // Initialize with sample data
+      let isAILoading = false;
+      let promptHistory = []; // New: Array to store last 5 prompts
+
+      // --- Page Navigation ---
+      function showPage(pageElement) {
+        pageElement.classList.remove('hidden');
+          pageElement.removeAttribute('inert');
+      }
+
+      function hidePage(pageElement) {
+        pageElement.classList.add('hidden');
+          pageElement.setAttribute('inert', '');
+      }
+
+      // --- Tab Navigation ---
+      function setActiveTab(type) {
+        tabs.forEach(tab => {
+          tab.classList.toggle('active', tab.dataset.type === type);
+          tab.setAttribute('aria-selected', String(tab.dataset.type === type)); // Ensure string value
+        });
+        currentTab = type;
+      }
+
+      // Tab click handler
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const tabType = tab.dataset.type;
+          if (tabType !== currentTab || aiResponseContainer.classList.contains('hidden') === false) {
+             // Reload content if changing tabs or switching from AI view
+            setActiveTab(tabType);
+             loadDocumentation(currentComponent, tabType); // Will hide AI container
+          }
+        });
+      });
+
+      // Function to load static documentation content
+      function loadDocumentation(component, dataType) {
+        console.log(`Loading documentation for ${component}, section: ${dataType}`);
+        hideLoading(); // Ensure loading state is off
+        hideAIResponse(); // Hide AI response area
+        
+        // Make sure tabs and title are visible for static docs
+        tabNavigation.style.display = 'flex';
+        contentTitle.style.display = 'block'; // Or initial/default if needed
+        
+        const componentData = getComponentData(component);
+        if (!componentData) {
+          console.error(`No documentation available for ${component}`);
+          contentTitle.textContent = `${component} - ${getTabLabel(dataType)}`;
+          contentBody.innerHTML = `<p>No documentation available for ${component}.</p>`;
+          contentBody.classList.remove('hidden'); // Show content body
+          return;
+        }
+        
+        contentTitle.textContent = `${component} - ${getTabLabel(dataType)}`;
+        
+        const propertyName = dataType.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+        let content = componentData[propertyName] || '<p>This section is not available.</p>';
+        
+        // Add description for usage
+        if (propertyName === 'usage' && componentData.description) {
+            content = `<p>${componentData.description}</p>${content}`;
+        }
+
+        contentBody.innerHTML = content;
+        contentBody.classList.remove('hidden'); // Show static content area
+      }
+
+      // Helper function to get component data
+      function getComponentData(componentName) {
+        return allComponentDocs[componentName] || (componentName === 'Button' ? sampleComponentData.Button : null);
+      }
+
+      // Helper to convert tab type to label
+      function getTabLabel(type) {
+        switch(type) {
+          case 'usage': return 'Usage';
+          case 'best-practices': return 'Best Practices';
+          case 'dos-and-donts': return 'Do\'s and Don\'ts';
+          case 'accessibility': return 'Accessibility';
+          default: return type.charAt(0).toUpperCase() + type.slice(1);
+        }
+      }
+
+      // --- Loading State ---
+      function showLoading() {
+        isAILoading = true;
+        hideAIResponse(); // Hide any previous AI response
+        contentBody.classList.add('hidden'); // Hide static content
+
+        // Hide tabs and title WHEN loading starts
+        tabNavigation.style.display = 'none';
+        contentTitle.style.display = 'none';
+
+        loadingState.style.display = 'flex'; // Show loading container
+        loadingState.classList.add('skeleton-active'); // ADD this class to show skeleton
+        askAiButton.disabled = true; // Disable AI button while loading
+      }
+
+      function hideLoading() {
+        isAILoading = false;
+        loadingState.style.display = 'none'; // Hide loading container
+        loadingState.classList.remove('skeleton-active'); // REMOVE this class
+        askAiButton.disabled = false; // Re-enable AI button
+        }
+
+      // --- AI Response Handling ---
+      // This function is now mainly for handling errors or non-streamed responses
+      function showAIResponse(response, componentName, error = false) {
+          hideLoading();
+          contentBody.classList.add('hidden'); // Hide static content
+          aiResponseContainer.classList.remove('hidden'); // Show AI container
+
+          // Hide tabs and title for AI view
+          tabNavigation.style.display = 'none';
+          contentTitle.style.display = 'none'; 
+        
+          // Use componentName if provided, otherwise fallback to currentComponent
+          const titleComponentName = componentName || currentComponent || 'Component'; // Added fallback
+          // contentTitle.textContent = `${titleComponentName} - AI Response`; // No longer needed as title is hidden
+
+          aiResponseContent.innerHTML = ''; // Clear previous content
+          aiResponseContent.classList.remove('error'); // Clear previous error state
+
+          if (error) {
+              // Display error message directly in the div
+              const errorHtml = `<p><strong>😟 Uh oh!</strong> There was an error getting information for ${titleComponentName}:</p><p>${response}</p>`;
+              aiResponseContent.innerHTML = errorHtml;
+              aiResponseContent.classList.add('error'); // Add error class for styling
+          } else {
+              // Parse the successful response into HTML
+              const generatedHtml = parseAIResponseToHTML(response);
+              aiResponseContent.innerHTML = generatedHtml;
+          }
+          
+          // Deactivate all tabs when showing AI response
+          tabs.forEach(tab => {
+              tab.classList.remove('active');
+              tab.setAttribute('aria-selected', 'false');
+          });
+          currentTab = null; // No tab is active
+
+          // Focus the container or copy button for accessibility
+          // aiResponseContent.focus(); // Focusing a div might not be standard, focus button instead?
+          copyResponseButton.focus(); 
+          copyResponseButton.disabled = error; // Disable copy on error
+      }
+
+      function hideAIResponse() {
+          aiResponseContainer.classList.add('hidden');
+          aiResponseContent.innerHTML = ''; // Clear div content
+          aiResponseContent.classList.remove('error'); // Clear error state
+          copyResponseButton.disabled = true; // Disable copy when hidden
+
+          // Ensure tabs and title are visible when hiding AI view
+          tabNavigation.style.display = 'flex';
+          contentTitle.style.display = 'block'; 
+      }
+
+      // --- Event Listeners ---
+
+      // Component Select Change
+      componentSelect.addEventListener('change', (event) => {
+        currentComponent = event.target.value;
+        console.log(`Component changed to: ${currentComponent}`);
+        
+        // If on content page and showing static docs, update the current tab's content
+        if (!contentPage.classList.contains('hidden') && currentTab) {
+          loadDocumentation(currentComponent, currentTab);
+        }
+        // If showing AI response, title will update on next AI query
+      });
+
+      // Options Grid Clicks and Keyboard
+      options.forEach(option => {
+        const dataType = option.dataset.type;
+        const handleClick = () => {
+          if (dataType === 'storybook') {
+            console.log(`UI: Storybook option clicked for: ${currentComponent}`);
+            // Send message to open Storybook link
+            parent.postMessage({
+              pluginMessage: { type: 'open-storybook', component: currentComponent }
+            }, '*');
+            console.log('UI: Message sent to open storybook.');
+          } else { 
+            setActiveTab(dataType);
+            loadDocumentation(currentComponent, dataType); // Load static docs
+            showContentPage(); // Transition to content page
+          }
+        };
+        option.addEventListener('click', handleClick);
+        option.addEventListener('keydown', (e) => {
+           if (e.key === 'Enter' || e.key === ' ') {
+             e.preventDefault();
+             handleClick();
+           }
+        });
+      });
+
+      // Back Button Click
+      backButton.addEventListener('click', () => {
+        hidePage(contentPage);
+        showPage(mainPage);
+        // Hide AI response and loading state when going back
+        hideAIResponse();
+        hideLoading();
+        // Optional: Clear static content too
+        // contentBody.innerHTML = ''; 
+        setTimeout(() => {
+          componentSelect.focus(); // Focus select on main page
+        }, 300); 
+      });
+      
+      // Ask AI Button Click (MODIFIED)
+      askAiButton.addEventListener('click', () => {
+        if (isAILoading) return; // Prevent multiple requests
+
+        const question = aiQuestionInput.value.trim();
+        const aiInputWrapper = aiQuestionInput.closest('.ai-input'); // Get the wrapper
+        
+        if (!question) {
+          // Add error state directly to the wrapper or textarea
+          aiInputWrapper.classList.add('error'); 
+          aiQuestionInput.placeholder = "Please enter a question before submitting";
+          aiQuestionInput.focus();
+          // Store original placeholder if not already stored
+          if (!aiQuestionInput.dataset.originalPlaceholder) {
+            aiQuestionInput.dataset.originalPlaceholder = "Ask a specific question about the component.";
+          }
+          return;
+        }
+
+        // Clear any error state from input
+        aiInputWrapper.classList.remove('error');
+        if (aiQuestionInput.dataset.originalPlaceholder) {
+          aiQuestionInput.placeholder = aiQuestionInput.dataset.originalPlaceholder;
+        }
+
+        // Show content page and loading state
+        showContentPage();
+        showLoading(); // Show spinner, hide content areas
+
+        // Send question to backend
+        parent.postMessage({
+          pluginMessage: {
+            type: 'ask-ai',
+            component: currentComponent,
+            question: question
+          }
+        }, '*');
+
+        // Clear the input field
+        aiQuestionInput.value = '';
+
+        // --- ADDED: Update history ---
+        updatePromptHistory(question);
+        // --- End ADDED ---
+      });
+      
+      // Copy Response Button Click (Updated)
+      copyResponseButton.addEventListener('click', () => {
+          const textToCopy = aiResponseContent.textContent;
+          if (!textToCopy) return; // Nothing to copy
+
+          // Use fallback execCommand method
+          const tempTextArea = document.createElement('textarea');
+          tempTextArea.value = textToCopy;
+          // Style to keep it out of view
+          tempTextArea.style.position = 'absolute';
+          tempTextArea.style.left = '-9999px';
+          tempTextArea.style.top = '0';
+          document.body.appendChild(tempTextArea);
+          
+          let success = false;
+          try {
+              tempTextArea.select();
+              // For mobile devices (less relevant in Figma context, but good practice)
+              tempTextArea.setSelectionRange(0, 99999); 
+              success = document.execCommand('copy');
+          } catch (err) {
+              console.error('Fallback copy failed: ', err);
+              success = false;
+          }
+
+          document.body.removeChild(tempTextArea);
+
+          // Provide user feedback based on success
+          if (success) {
+              console.log('AI response copied to clipboard (fallback method)');
+              // const originalHTML = copyResponseButton.innerHTML; // No longer needed
+              // copyResponseButton.textContent = 'Copied!'; // Handled by CSS
+              copyResponseButton.classList.add('copied'); // Add class to trigger animation
+              copyResponseButton.disabled = true;
+              setTimeout(() => { 
+                  // copyResponseButton.innerHTML = originalHTML; // Revert handled by removing class
+                  copyResponseButton.classList.remove('copied'); // Remove class
+                  copyResponseButton.disabled = false;
+              }, 1500);
+          } else {
+              console.error('Failed to copy text using fallback method.');
+              // Optionally show a more persistent error message to the user
+              const originalHTML = copyResponseButton.innerHTML;
+              // Maybe update the default state text temporarily?
+              const defaultStateSpan = copyResponseButton.querySelector('.default-state span');
+              if (defaultStateSpan) defaultStateSpan.textContent = 'Copy Failed'; 
+              copyResponseButton.disabled = true; // Keep disabled on failure?
+              setTimeout(() => { 
+                  // Restore original text if changed
+                  if (defaultStateSpan) defaultStateSpan.textContent = 'Copy Response';
+                  copyResponseButton.disabled = false; // Re-enable after failure msg
+              }, 2000);
+              }
+      });
+      
+      // Clear AI input error state on input/focus
+      aiQuestionInput.addEventListener('input', clearAiInputError);
+      aiQuestionInput.addEventListener('focus', clearAiInputError);
+      
+      function clearAiInputError() {
+          const aiInputWrapper = aiQuestionInput.closest('.ai-input');
+          if (aiInputWrapper.classList.contains('error')) {
+              aiInputWrapper.classList.remove('error');
+              // Restore original placeholder
+              if (aiQuestionInput.dataset.originalPlaceholder) {
+                 aiQuestionInput.placeholder = aiQuestionInput.dataset.originalPlaceholder;
+              } else {
+                 aiQuestionInput.placeholder = "Ask a specific question about the component."; // Default
+              }
+          }
+      }
+      
+      // --- Message Handling from Backend ---
+      // let streamedResponse = ''; // Removed unused variable
+
+      window.onmessage = (event) => {
+        if (!event.data || !event.data.pluginMessage) return; // Ignore invalid messages
+
+        const message = event.data.pluginMessage;
+        console.log('UI: Received message from backend:', message);
+        
+        switch (message.type) {
+          case 'load-documentation':
+            allComponentDocs = message.data || {}; // Use received data or empty obj
+            console.log('UI: Documentation data loaded. Available:', Object.keys(allComponentDocs));
+            
+            // --- Populate Dropdown and Set Default ---
+            const componentNames = Object.keys(allComponentDocs);
+            componentNames.sort(); // Alphabetize the component names
+            componentSelect.innerHTML = ''; // Clear existing options
+
+            if (componentNames.length > 0) {
+              // Set current component to the first one in the list
+              currentComponent = componentNames[0]; 
+              console.log(`UI: Default component set to: ${currentComponent}`);
+
+              componentNames.forEach((name, index) => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                if (index === 0) {
+                  option.selected = true; // Select the first item
+                }
+                componentSelect.appendChild(option);
+              });
+            
+              // Ensure the select visually reflects the selected value (redundant but safe)
+              componentSelect.value = currentComponent;
+
+              // If we are already on the content page, reload the docs for the new default
+              if (!contentPage.classList.contains('hidden') && currentTab) {
+                console.log(`UI: Reloading content page for new default component: ${currentComponent}, tab: ${currentTab}`);
+                loadDocumentation(currentComponent, currentTab);
+              }
+            } else {
+              // Handle case where no documentation is loaded
+              console.warn('UI: No component documentation available after load.');
+              currentComponent = null; // No component selected
+              // Optionally display an error message or disable parts of the UI
+              const option = document.createElement('option');
+              option.textContent = 'No components loaded';
+              option.disabled = true;
+              componentSelect.appendChild(option);
+            }
+            // --- End Populate Dropdown --- 
+            
+            // Removed the old logic that checked if 'Button' existed
+            /*
+            // If current component is no longer valid, try to find a default
+            if (!allComponentDocs[currentComponent]) {
+              const firstAvailable = Object.keys(allComponentDocs)[0];
+              if (firstAvailable) {
+                currentComponent = firstAvailable;
+                componentSelect.value = currentComponent; // Update dropdown
+                console.log(`Switched to available component: ${currentComponent}`);
+              } else {
+                 // Handle case where no docs are loaded at all? Maybe show error?
+                 console.warn('No component documentation available after load.');
+                 currentComponent = 'Button'; // Fallback to sample
+                 allComponentDocs = sampleComponentData; 
+              }
+            }
+            // If on content page showing static docs, reload current tab
+            if (!contentPage.classList.contains('hidden') && currentTab) {
+                 loadDocumentation(currentComponent, currentTab);
+                        }
+            */
+            break;
+
+          case 'ai-response': // Handles errors and successful non-streaming responses
+            console.log('UI: Processing standard AI response:', message);
+            // Note: showAIResponse currently does basic error formatting but not the Gator formatting.
+            // If specific formatting is needed for successful non-streamed responses, it should be added here or within showAIResponse.
+            showAIResponse(message.response, message.componentName, message.error); 
+            console.log(`UI: AI ${message.error ? 'error' : 'response'} displayed`);
+            break;
+
+          case 'component-data': // Likely redundant
+             console.log('Received component-data message:', message.componentName);
+            break;
+        }
+      };
+
+      // --- Resize Functionality ---
+      const resizeGrabber = document.getElementById('resize-grabber');
+      let isResizing = false;
+      let initialWidth, initialHeight, initialX, initialY;
+
+      function setupResizeHandler() {
+        if (!resizeGrabber) return; // Guard against missing element
+        resizeGrabber.addEventListener('mousedown', startResize);
+        resizeGrabber.addEventListener('keydown', handleResizeKeyStart);
+      }
+
+      function startResize(e) {
+        e.preventDefault();
+        isResizing = true;
+        document.body.classList.add('resizing');
+        initialWidth = window.innerWidth;
+        initialHeight = window.innerHeight;
+        initialX = e.clientX;
+        initialY = e.clientY;
+        document.addEventListener('mousemove', handleResize);
+        document.addEventListener('mouseup', stopResize);
+      }
+
+      function handleResize(e) {
+        if (!isResizing) return;
+        const deltaX = e.clientX - initialX;
+        const deltaY = e.clientY - initialY;
+        const minWidth = 430;
+        const minHeight = 584;
+        const newWidth = Math.max(minWidth, initialWidth + deltaX);
+        const newHeight = Math.max(minHeight, initialHeight + deltaY);
+        sendResizeMessage(newWidth, newHeight);
+      }
+
+      function stopResize() {
+        if (!isResizing) return;
+        isResizing = false;
+        document.body.classList.remove('resizing');
+        document.removeEventListener('mousemove', handleResize);
+        document.removeEventListener('mouseup', stopResize);
+      }
+
+      // Handle resize with keyboard
+      function handleResizeKeyStart(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          document.body.classList.add('resizing');
+          initialWidth = window.innerWidth;
+          initialHeight = window.innerHeight;
+          window.addEventListener('keydown', handleResizeKey);
+          window.addEventListener('keyup', stopResizeKey);
+          // Optionally add visual feedback for keyboard resize mode
+        }
+      }
+
+      function handleResizeKey(e) {
+        const STEP = 10;
+        let deltaX = 0;
+        let deltaY = 0;
+        switch(e.key) {
+          case 'ArrowRight': deltaX = STEP; break;
+          case 'ArrowDown': deltaY = STEP; break;
+          case 'ArrowLeft': deltaX = -STEP; break;
+          case 'ArrowUp': deltaY = -STEP; break;
+          case 'Enter':
+          case 'Escape': stopResizeKey(); return;
+          default: return; // Ignore other keys
+        }
+        e.preventDefault(); // Prevent scrolling with arrows
+        resizeWithKeyboard(deltaX, deltaY);
+      }
+
+      function resizeWithKeyboard(deltaX, deltaY) {
+        const minWidth = 430;
+        const minHeight = 584;
+        // Use current window size, not initial, for cumulative effect
+        const currentWidth = window.innerWidth;
+        const currentHeight = window.innerHeight;
+        const newWidth = Math.max(minWidth, currentWidth + deltaX);
+        const newHeight = Math.max(minHeight, currentHeight + deltaY);
+        sendResizeMessage(newWidth, newHeight);
+      }
+
+      function stopResizeKey() {
+        document.body.classList.remove('resizing');
+        window.removeEventListener('keydown', handleResizeKey);
+        window.removeEventListener('keyup', stopResizeKey);
+        // Remove visual feedback if added
+        if (resizeGrabber) { // Check if grabber exists
+          resizeGrabber.focus(); // Return focus to grabber
+        }
+      }
+
+      function sendResizeMessage(width, height) {
+        parent.postMessage({ 
+          pluginMessage: { type: 'resize', width: width, height: height }
+        }, '*');
+      }
+
+      // Initialize resize handler
+      setupResizeHandler();
+
+      // Show Content Page logic (handles transition and focus)
+      function showContentPage() {
+        if (!contentPage.classList.contains('hidden')) return; // Already visible
+
+        // Ensure page is display:flex before transition starts
+        contentPage.style.display = 'flex'; 
+
+        requestAnimationFrame(() => { // Allow flex display to apply
+          hidePage(mainPage);
+          showPage(contentPage); // This adds 'not hidden', removes 'hidden' and 'inert'
+          
+          setTimeout(() => {
+            // Focus logic depends on what's shown
+            if (!loadingState.style.display || loadingState.style.display === 'none') {
+               if (!aiResponseContainer.classList.contains('hidden')) {
+                   aiResponseContent.focus(); // Focus AI textarea if shown
+               } else if (backButton) {
+                   backButton.focus(); // Focus back button for static docs
+               }
+            }
+            // If loading, focus remains on triggering element or body
+          }, 300); // Match transition duration
+        });
+      }
+
+      // Add keyboard interaction for option cards
+      options.forEach(option => {
+        option.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault(); 
+            option.click(); 
+          }
+        });
+      });
+
+      // --- Initial Setup ---
+      // Load initial documentation data from backend if needed
+      // parent.postMessage({ pluginMessage: { type: 'request-initial-docs' } }, '*');
+      // Or assume Button is default and sample data is sufficient initially
+      // Set initial state - Main page visible
+      hidePage(contentPage); 
+      showPage(mainPage);
+
+      // NEW: Function to parse plain text AI response into basic HTML
+      function parseAIResponseToHTML(text) {
+        const lines = text.trim().split('\n');
+        let html = '';
+        let inList = false;
+
+        // Known headings from the prompt
+        const headings = [
+            "Best Practices",
+            "Usage Guidelines",
+            "Accessibility Considerations",
+            // Add any other potential top-level sections here
+        ];
+
+        // Simple check for Component Name / Description at the start
+        if (lines.length > 0 && !headings.includes(lines[0].trim()) && !(lines[0].trim().startsWith('•') || lines[0].trim().startsWith('- ') || lines[0].trim().startsWith('* '))) {
+           html += `<h4>${lines[0].trim()}</h4>\n`; // Treat first line as potential Component Name
+           if (lines.length > 1 && !headings.includes(lines[1].trim()) && !(lines[1].trim().startsWith('•') || lines[1].trim().startsWith('- ') || lines[1].trim().startsWith('* ')) && lines[1].trim().length > 0) {
+               html += `<p>${lines[1].trim()}</p>\n`; // Treat second line as potential Description
+               lines.splice(0, 2); // Remove processed lines
+           } else {
+               lines.splice(0, 1); // Remove just the first line
+           }
+        } else if (lines.length > 1 && lines[0].trim().length === 0 && !headings.includes(lines[1].trim()) && !(lines[1].trim().startsWith('•') || lines[1].trim().startsWith('- ') || lines[1].trim().startsWith('* '))) {
+           // Handle case where Name/Desc might start after a blank line
+           html += `<h4>${lines[1].trim()}</h4>\n`;
+           if (lines.length > 2 && !headings.includes(lines[2].trim()) && !(lines[2].trim().startsWith('•') || lines[2].trim().startsWith('- ') || lines[2].trim().startsWith('* ')) && lines[2].trim().length > 0) {
+                html += `<p>${lines[2].trim()}</p>\n`;
+                lines.splice(0, 3);
+          } else {
+                lines.splice(0, 2);
+          }
+      }
+
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine.length === 0) {
+                // Close list if open before a blank line
+                if (inList) {
+                    html += '</ul>\n';
+                    inList = false;
+                }
+                // Optionally add <br> for intentional blank lines, or just skip
+                continue; 
+            }
+
+            // Check for Headings
+            if (headings.includes(trimmedLine)) {
+                if (inList) {
+                    html += '</ul>\n';
+                    inList = false;
+                }
+                html += `<h4>${trimmedLine}</h4>\n`;
+            } 
+            // Check for Bullet Points (Allowing for spaces after bullet)
+            else if (trimmedLine.startsWith('•') || trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
+                if (!inList) {
+                    html += '<ul>\n';
+                    inList = true;
+      }
+                // Remove bullet and trim
+                const listItemText = trimmedLine.substring(trimmedLine.indexOf(' ') + 1).trim(); 
+                html += `  <li>${listItemText}</li>\n`;
+            } 
+            // Treat as Paragraph
+            else {
+                 // Close list if we encounter a paragraph after a list
+                if (inList) {
+                    html += '</ul>\n';
+                    inList = false;
+                }
+                 html += `<p>${trimmedLine}</p>\n`;
+          }
+        }
+
+        // Close any open list at the end
+        if (inList) {
+            html += '</ul>\n';
+        }
+
+        return html;
+          }
+
+      // --- Prompt History Functions (NEW) ---
+      function updatePromptHistory(prompt) {
+        if (!prompt) return;
+        // Add to the beginning and remove duplicates
+        promptHistory = [prompt, ...promptHistory.filter(p => p !== prompt)];
+        // Keep only the last 5
+        promptHistory = promptHistory.slice(0, 5);
+        console.log('UI: Prompt history updated:', promptHistory);
+      }
+
+      function populateHistoryDropdown() {
+          promptHistoryDropdown.innerHTML = ''; // Clear existing items
+          if (promptHistory.length === 0) {
+              const noHistoryItem = document.createElement('div');
+              noHistoryItem.textContent = 'No recent prompts';
+              noHistoryItem.style.padding = '8px 12px';
+              noHistoryItem.style.fontSize = '12px';
+              noHistoryItem.style.color = 'var(--figma-color-text-secondary)';
+              promptHistoryDropdown.appendChild(noHistoryItem);
+              return;
+          }
+
+          promptHistory.forEach((prompt, index) => {
+              const item = document.createElement('div');
+              item.classList.add('prompt-history-item');
+              item.textContent = prompt;
+              item.title = prompt; // Show full prompt on hover
+              item.tabIndex = 0; // Make it focusable
+              item.setAttribute('role', 'option');
+              item.setAttribute('aria-posinset', index + 1);
+              item.setAttribute('aria-setsize', promptHistory.length);
+
+              item.addEventListener('click', () => {
+                  aiQuestionInput.value = prompt;
+                  hideHistoryDropdown();
+                  aiQuestionInput.focus();
+              });
+              item.addEventListener('keydown', (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                     e.preventDefault();
+                     aiQuestionInput.value = prompt;
+                     hideHistoryDropdown();
+                     aiQuestionInput.focus();
+                  } else if (e.key === 'Escape') {
+                     hideHistoryDropdown();
+                     promptHistoryBtn.focus();
+                  }
+              });
+              promptHistoryDropdown.appendChild(item);
+          });
+      }
+
+      function showHistoryDropdown() {
+          populateHistoryDropdown();
+          promptHistoryDropdown.classList.add('show');
+          promptHistoryBtn.setAttribute('aria-expanded', 'true');
+          // Add listener to close dropdown when clicking outside
+          document.addEventListener('click', handleClickOutsideHistory, true);
+          promptHistoryDropdown.focus(); // Focus the dropdown itself first
+      }
+
+      function hideHistoryDropdown() {
+          promptHistoryDropdown.classList.remove('show');
+          promptHistoryBtn.setAttribute('aria-expanded', 'false');
+          document.removeEventListener('click', handleClickOutsideHistory, true);
+      }
+
+      function toggleHistoryDropdown() {
+          if (promptHistoryDropdown.classList.contains('show')) {
+              hideHistoryDropdown();
+          } else {
+              showHistoryDropdown();
+          }
+      }
+
+      function handleClickOutsideHistory(event) {
+          if (!promptHistoryDropdown.contains(event.target) && event.target !== promptHistoryBtn && !promptHistoryBtn.contains(event.target)) {
+              hideHistoryDropdown();
+          }
+      }
+      // --- End Prompt History Functions ---
+
+      // Prompt History Button Click (NEW)
+      promptHistoryBtn.addEventListener('click', toggleHistoryDropdown);
+      promptHistoryBtn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleHistoryDropdown();
+          }
+      });
+
+    </script>
+  </body>
+</html>
+
