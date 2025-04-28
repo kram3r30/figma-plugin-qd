@@ -52,6 +52,3 @@ Once the plugin is installed:
 3. Choose a component or let the plugin auto-select based on your current canvas selection.
 4. Ask the AI questions or explore the static documentation.
 
-## License
-
-[MIT License](LICENSE)
