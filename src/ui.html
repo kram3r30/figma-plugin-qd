@@ -1119,19 +1119,15 @@
       <!-- Main Menu Page -->
       <div class="page" id="main-page" role="main" aria-label="Figma Component Documentation">
         <div class="container">
-          <!-- Component Selector - REBUILT -->
+          <!-- Component Selector - REBUILT (Structure remains similar for styling) -->
           <div class="component-selector">
             <label for="component-select" class="selector-label">Select a Gator component</label>
             <select id="component-select" aria-describedby="component-select-description">
-              <option value="Accordion">Accordion</option>
-              <option value="Alert">Alert</option>
-              <option value="Button">Button</option>
-              <option value="Button Icon">Button Icon</option>
-              <option value="Card">Card</option>
-              <!-- <option value="Dialog">Dialog</option> --> // Removed Dialog option
+              <!-- Options will be populated by 'load-documentation' message -->
+              <option value="" disabled selected>Loading components...</option>
             </select>
             <span id="component-select-description" class="visually-hidden">
-              Select a component to view its documentation
+              Select a component to view its documentation or ask AI questions about it. Updated based on canvas selection.
             </span>
           </div>
           <!-- End Component Selector -->
@@ -2060,79 +2056,94 @@
             // --- Populate Dropdown and Set Default ---
             const componentNames = Object.keys(allComponentDocs);
             componentNames.sort(); // Alphabetize the component names
-            componentSelect.innerHTML = ''; // Clear existing options
+            componentSelect.innerHTML = ''; // Clear existing options (including "Loading...")
 
             if (componentNames.length > 0) {
-              // Set current component to the first one in the list
-              currentComponent = componentNames[0]; 
-              console.log(`UI: Default component set to: ${currentComponent}`);
+              // Try to keep current selection if valid, otherwise default to first
+              const currentSelectionIsValid = currentComponent && allComponentDocs[currentComponent];
+              if (!currentSelectionIsValid) {
+                currentComponent = componentNames[0]; // Default to first if current invalid or null
+              }
+              console.log(`UI: Initial/Current component set to: ${currentComponent}`);
 
-              componentNames.forEach((name, index) => {
+              componentNames.forEach((name) => {
                 const option = document.createElement('option');
                 option.value = name;
                 option.textContent = name;
-                if (index === 0) {
-                  option.selected = true; // Select the first item
+                // Select the option matching currentComponent
+                if (name === currentComponent) {
+                  option.selected = true;
                 }
                 componentSelect.appendChild(option);
               });
-            
-              // Ensure the select visually reflects the selected value (redundant but safe)
+
+              // Ensure the select visually reflects the selected value
               componentSelect.value = currentComponent;
 
-              // If we are already on the content page, reload the docs for the new default
-              if (!contentPage.classList.contains('hidden') && currentTab) {
-                console.log(`UI: Reloading content page for new default component: ${currentComponent}, tab: ${currentTab}`);
-                loadDocumentation(currentComponent, currentTab);
+              // If we are already on the content page, reload the docs for the current component
+              if (!contentPage.classList.contains('hidden') && currentTab && aiResponseContainer.classList.contains('hidden')) {
+                 console.log(`UI: Reloading content page for current component: ${currentComponent}, tab: ${currentTab}`);
+                 loadDocumentation(currentComponent, currentTab);
               }
             } else {
               // Handle case where no documentation is loaded
               console.warn('UI: No component documentation available after load.');
               currentComponent = null; // No component selected
-              // Optionally display an error message or disable parts of the UI
               const option = document.createElement('option');
               option.textContent = 'No components loaded';
               option.disabled = true;
+              option.selected = true;
               componentSelect.appendChild(option);
             }
-            // --- End Populate Dropdown --- 
-            
-            // Removed the old logic that checked if 'Button' existed
-            /*
-            // If current component is no longer valid, try to find a default
-            if (!allComponentDocs[currentComponent]) {
-              const firstAvailable = Object.keys(allComponentDocs)[0];
-              if (firstAvailable) {
-                currentComponent = firstAvailable;
-                componentSelect.value = currentComponent; // Update dropdown
-                console.log(`Switched to available component: ${currentComponent}`);
-              } else {
-                 // Handle case where no docs are loaded at all? Maybe show error?
-                 console.warn('No component documentation available after load.');
-                 currentComponent = 'Button'; // Fallback to sample
-                 allComponentDocs = sampleComponentData; 
-              }
-            }
-            // If on content page showing static docs, reload current tab
-            if (!contentPage.classList.contains('hidden') && currentTab) {
-                 loadDocumentation(currentComponent, currentTab);
-                        }
-            */
+            // --- End Populate Dropdown ---
             break;
 
           case 'ai-response': // Handles errors and successful non-streaming responses
             console.log('UI: Processing standard AI response:', message);
-            // Note: showAIResponse currently does basic error formatting but not the Gator formatting.
-            // If specific formatting is needed for successful non-streamed responses, it should be added here or within showAIResponse.
-            showAIResponse(message.response, message.componentName, message.error); 
+            showAIResponse(message.response, message.componentName, message.error);
             console.log(`UI: AI ${message.error ? 'error' : 'response'} displayed`);
             break;
 
-          case 'component-data': // Likely redundant
-             console.log('Received component-data message:', message.componentName);
+          // Added Case
+          case 'component-selected':
+            if (typeof message.componentName === 'string') {
+              const selectedName = message.componentName;
+              console.log(`UI: Received selection from canvas: ${selectedName}`);
+
+              // Check if this component exists in our documentation/dropdown
+              const optionExists = Array.from(componentSelect.options).some(opt => opt.value === selectedName);
+
+              if (optionExists) {
+                // Update the dropdown value if it's different
+                if (componentSelect.value !== selectedName) {
+                    componentSelect.value = selectedName;
+                }
+                // Update the currentComponent variable if it's different
+                if (currentComponent !== selectedName) {
+                   currentComponent = selectedName;
+                   console.log(`UI: Component state updated to: ${currentComponent}`);
+
+                   // If on content page and showing static docs, update the view
+                   if (!contentPage.classList.contains('hidden') && currentTab && aiResponseContainer.classList.contains('hidden')) {
+                     console.log(`UI: Reloading documentation for ${currentComponent}, tab: ${currentTab}`);
+                     loadDocumentation(currentComponent, currentTab);
+                   }
+                }
+              } else {
+                console.log(`UI: Selected component "${selectedName}" not found in dropdown.`);
+                // Optional: Decide how to handle components selected on canvas but not in docs
+                // e.g., maybe clear the dropdown selection or keep the previous one?
+                // componentSelect.value = ''; // Example: Clear selection
+                // currentComponent = null;
+              }
+            } else {
+              console.warn('UI: Invalid component-selected message payload:', message);
+            }
             break;
-        }
-      };
+          // End Added Case
+
+        } // End switch
+      }; // End window.onmessage
 
       // --- Resize Functionality ---
       const resizeGrabber = document.getElementById('resize-grabber');
