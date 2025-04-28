@@ -148,7 +148,7 @@ async function handleAskAi(msg: { question: string, component: string }) {
 }
 
 // Ollama API Interaction (Non-Streaming Version)
-const OLLAMA_URL = 'http://localhost:11434/api/generate';
+const OLLAMA_URL = 'http://localhost:3001/api/generate';
 const OLLAMA_MODEL = 'llama3:8b';
 
 async function callOllamaApiNonStreamed(prompt: string) {
