@@ -10,7 +10,8 @@
         "https://api.anthropic.com"
       ],
       "devAllowedDomains": [
-        "http://localhost:11434"
+        "http://localhost:11434",
+        "http://localhost:3001"
       ]
     }
   }
