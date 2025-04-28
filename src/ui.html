@@ -1112,6 +1112,34 @@
       #prompt-history-dropdown::-webkit-scrollbar-thumb:hover { background-color: var(--figma-color-border-stronger, #777); }
       #prompt-history-dropdown { scrollbar-width: thin; scrollbar-color: var(--figma-color-border-strong, #555) transparent; }
 
+      /* NEW: Style for the Clear History Button */
+      .clear-history-button {
+        display: block; /* Take full width */
+        width: 100%;
+        padding: 6px 12px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--figma-color-text-secondary, #aaaaaa);
+        background: transparent; /* Change background */
+        border: none; /* Remove default border */
+       
+        border-radius: 0; /* Remove radius to blend with border */
+        text-align: center;
+        cursor: pointer;
+        transition: background-color 0.1s ease, color 0.1s ease;
+        outline: none;
+      }
+      .clear-history-button:hover {
+        background: var(--figma-color-bg-hover, #2a2a2a);
+        color: var(--figma-color-text, #F3F3F3);
+      }
+      .clear-history-button:focus-visible {
+        /* Keep existing focus style */
+        border-color: var(--figma-color-border-brand, #18A0FB);
+        box-shadow: 0 0 0 1px var(--figma-color-border-brand, #18A0FB);
+        color: var(--figma-color-text-brand, #18A0FB);
+      }
+
     </style>
   </head>
   <body>
@@ -2385,6 +2413,10 @@
 
       function populateHistoryDropdown() {
           promptHistoryDropdown.innerHTML = ''; // Clear existing items
+
+          // --- MOVED Clear Button Logic --- 
+
+          // Populate with history items or empty message
           if (promptHistory.length === 0) {
               const noHistoryItem = document.createElement('div');
               noHistoryItem.textContent = 'No recent prompts';
@@ -2392,9 +2424,11 @@
               noHistoryItem.style.fontSize = '12px';
               noHistoryItem.style.color = 'var(--figma-color-text-secondary)';
               promptHistoryDropdown.appendChild(noHistoryItem);
-              return;
+              // No button needed if empty, so we can return here
+              return; 
           }
 
+          // Add history items
           promptHistory.forEach((prompt, index) => {
               const item = document.createElement('div');
               item.classList.add('prompt-history-item');
@@ -2423,10 +2457,28 @@
               });
               promptHistoryDropdown.appendChild(item);
           });
+          
+          // --- Add "Clear History" button AFTER items (if history exists) ---
+          // We know promptHistory.length > 0 if we reached here
+          const clearButton = document.createElement('button');
+          clearButton.textContent = 'Clear History';
+          clearButton.classList.add('clear-history-button'); // Apply CSS class
+          clearButton.type = 'button'; // Prevent form submission if wrapped
+
+          clearButton.addEventListener('click', (e) => {
+              e.stopPropagation(); // Prevent dropdown from closing immediately
+              promptHistory = []; // Clear the array
+              console.log('UI: Prompt history cleared.');
+              // Repopulate (will show empty message) and close
+              populateHistoryDropdown(); 
+              hideHistoryDropdown(); 
+              promptHistoryBtn.focus(); // Focus original button
+          });
+          promptHistoryDropdown.appendChild(clearButton); // Add button to the BOTTOM
       }
 
       function showHistoryDropdown() {
-          populateHistoryDropdown();
+          populateHistoryDropdown(); // This now potentially adds the clear button
           promptHistoryDropdown.classList.add('show');
           promptHistoryBtn.setAttribute('aria-expanded', 'true');
           // Add listener to close dropdown when clicking outside
@@ -2449,7 +2501,11 @@
       }
 
       function handleClickOutsideHistory(event) {
-          if (!promptHistoryDropdown.contains(event.target) && event.target !== promptHistoryBtn && !promptHistoryBtn.contains(event.target)) {
+          // Update to also check if the click was on the clear button
+          if (!promptHistoryDropdown.contains(event.target) && 
+              event.target !== promptHistoryBtn && 
+              !promptHistoryBtn.contains(event.target) &&
+              !event.target.classList.contains('clear-history-button')) { // Check class
               hideHistoryDropdown();
           }
       }
@@ -2462,6 +2518,14 @@
               e.preventDefault();
               toggleHistoryDropdown();
           }
+      });
+
+      // Clear History Button Click
+      document.getElementById('clear-history-button').addEventListener('click', () => {
+        promptHistory = [];
+        populateHistoryDropdown();
+        hideHistoryDropdown();
+        promptHistoryBtn.focus();
       });
 
     </script>
