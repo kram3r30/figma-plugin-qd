@@ -5,37 +5,37 @@ A powerful Figma plugin that combines static documentation display with AI-power
 
 ## Features
 
-- 📚 **Local Documentation**: 
+📚 **Local Documentation**: 
   - Loads and displays static documentation (Usage, Best Practices, etc.) for design system components from a local data source (`componentDocs`).
   
-- 🖱️ **Component Selection**: 
+🖱️ **Component Selection**: 
   - Lets users choose a component via a dropdown or automatically updates based on the current Figma canvas selection.
   
-- 🔗 **Storybook Integration**: 
+🔗 **Storybook Integration**: 
   - Provides a button to directly open the selected component's Storybook page in the browser.
   
-- 🤖 **Local AI Queries**: 
+🤖 **Local AI Queries**: 
   - Allows users to ask questions about components, sending queries to a locally running Ollama AI model (default: `llama3:8b`).
 
-- ✨ **AI Formatting**: 
+✨ **AI Formatting**: 
   - Instructs the AI to respond in a friendly, documentation-style format using plain text, bullet points, and relevant emojis.
 
-- ⚡ **Response Caching**: 
+⚡ **Response Caching**: 
   - Temporarily caches AI responses for 15 minutes to provide faster answers for repeated questions.
 
-- 💬 **Integrated Display**: 
+💬 **Integrated Display**: 
   - Shows both static docs and formatted AI responses within the plugin's UI panel.
 
-- ⏳ **Prompt History**: 
+⏳ **Prompt History**: 
   - Keeps track of recent user prompts for easy reuse and allows clearing the history.
 
-- ✂️ **Copy Functionality**: 
+✂️ **Copy Functionality**: 
   - Includes a button to copy the AI-generated response.
 
-- ↔️ **Resizable UI**: 
+↔️ **Resizable UI**: 
   - The plugin window can be resized by the user.
 
-- 🛠️ **Error Handling**: 
+🛠️ **Error Handling**: 
   - Provides specific user feedback if it cannot connect to the local Ollama service or if other errors occur.
 
 ## Installation
